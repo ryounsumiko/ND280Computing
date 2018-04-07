@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2.7
 
 """
 
@@ -8,49 +8,52 @@ Handy functions to make using the GRID a little more bearable.
 
 import sys
 import re
-import tempfile
 import os
-import optparse
-import shutil
 import pexpect
 import time
-import datetime
 from datetime import datetime
 from datetime import date
-import random
 import traceback
-import subprocess
 from subprocess import Popen, PIPE
-import signal
 from hashlib import sha1
-from uuid import uuid1
 
 
-########################
-## Master dictionary containing se : [ root, fts2Channel, hasSpaceToken ] bindings
-se_master={'srm-t2k.gridpp.rl.ac.uk'   :['srm://srm-t2k.gridpp.rl.ac.uk/castor/ads.rl.ac.uk/prod/t2k.org/nd280/',  'RALLCG2',              True ],                                                   
-           'se03.esc.qmul.ac.uk'       :['srm://se03.esc.qmul.ac.uk/t2k.org/nd280/',                               'UKILT2QMUL',           True ],  # confirmed default location for new data     
-           'gfe02.grid.hep.ph.ic.ac.uk':['srm://gfe02.grid.hep.ph.ic.ac.uk/pnfs/hep.ph.ic.ac.uk/data/t2k/nd280/',  'UKILT2ICHEP',          True ],                                                
-           'hepgrid11.ph.liv.ac.uk'    :['srm://hepgrid11.ph.liv.ac.uk/dpm/ph.liv.ac.uk/home/t2k.org/nd280/',      'UKINORTHGRIDLIVHEP',   True ],                                                
-           'lcgse0.shef.ac.uk'         :['srm://lcgse0.shef.ac.uk/dpm/shef.ac.uk/home/t2k.org/nd280/',             'UKINORTHGRIDSHEFHEP',  True ],                                                
-           't2se01.physics.ox.ac.uk'   :['srm://t2se01.physics.ox.ac.uk/dpm/physics.ox.ac.uk/home/t2k.org/nd280/', 'UKISOUTHGRIDOXHEP',    False], # not yet implemented...                      
-           'ccsrm02.in2p3.fr'          :['srm://ccsrm02.in2p3.fr/pnfs/in2p3.fr/data/t2k/t2k.org/nd280/',           'IN2P3CC',              False], # broke SRM                                   
-           'fal-pygrid-30.lancs.ac.uk' :['srm://fal-pygrid-30.lancs.ac.uk/dpm/lancs.ac.uk/home/t2k.org/nd280/',    'UKINORTHGRIDLANCSHEP', True ],                                                
-           't2ksrm.nd280.org'          :['srm://t2ksrm.nd280.org/nd280data/',                                      'CATRIUMFT2K',          False],                                               
-           'srmv2.ific.uv.es'          :['srm://srmv2.ific.uv.es/lustre/ific.uv.es/grid/t2k.org/nd280/',           '',                     True ],                                                
-           'srm.pic.es'                :['srm://srm.pic.es/pnfs/pic.es/data/t2k.org/nd280/',                       'PIC',                  True ],  # confirmed default location for new data     
-           'kek2-se01.cc.kek.jp'       :['srm://kek2-se01.cc.kek.jp/t2k.org/nd280/',                               'JPKEKCRC02',           False],                                               
-           'kek2-se.cc.kek.jp'         :['srm://kek2-se.cc.kek.jp/t2k.org/nd280/',                                 'JPKEKCRC02',           False]                                               
-          }
+class status_flags:
+    """a namespace for status flags"""
+    kProxyValid = 0
+    kProxyInvalid = 1
+
+
+class status_wait_times:
+    """a namespace for common wait times"""
+    kProxyExpirationThreshold = 120  # seconds
+    kProxyNextCheck = 360  # seconds
+
+# Master dictionary containing storage elements (SE) bindings
+# FORMAT se : [ root, fts2Channel, hasSpaceToken ]
+se_master = {'srm-t2k.gridpp.rl.ac.uk'   :['srm://srm-t2k.gridpp.rl.ac.uk/castor/ads.rl.ac.uk/prod/t2k.org/nd280/',  'RALLCG2',              True ],
+             'se03.esc.qmul.ac.uk'       :['srm://se03.esc.qmul.ac.uk/t2k.org/nd280/',                               'UKILT2QMUL',           True ],  # confirmed default location for new data
+             'gfe02.grid.hep.ph.ic.ac.uk':['srm://gfe02.grid.hep.ph.ic.ac.uk/pnfs/hep.ph.ic.ac.uk/data/t2k/nd280/',  'UKILT2ICHEP',          True ],
+             'hepgrid11.ph.liv.ac.uk'    :['srm://hepgrid11.ph.liv.ac.uk/dpm/ph.liv.ac.uk/home/t2k.org/nd280/',      'UKINORTHGRIDLIVHEP',   True ],
+             'lcgse0.shef.ac.uk'         :['srm://lcgse0.shef.ac.uk/dpm/shef.ac.uk/home/t2k.org/nd280/',             'UKINORTHGRIDSHEFHEP',  True ],
+             't2se01.physics.ox.ac.uk'   :['srm://t2se01.physics.ox.ac.uk/dpm/physics.ox.ac.uk/home/t2k.org/nd280/', 'UKISOUTHGRIDOXHEP',    False], # not yet implemented...
+             'ccsrm02.in2p3.fr'          :['srm://ccsrm02.in2p3.fr/pnfs/in2p3.fr/data/t2k/t2k.org/nd280/',           'IN2P3CC',              False], # broke SRM
+             'fal-pygrid-30.lancs.ac.uk' :['srm://fal-pygrid-30.lancs.ac.uk/dpm/lancs.ac.uk/home/t2k.org/nd280/',    'UKINORTHGRIDLANCSHEP', True ],
+             't2ksrm.nd280.org'          :['srm://t2ksrm.nd280.org/nd280data/',                                      'CATRIUMFT2K',          False],
+             'srmv2.ific.uv.es'          :['srm://srmv2.ific.uv.es/lustre/ific.uv.es/grid/t2k.org/nd280/',           '',                     True ],
+             'srm.pic.es'                :['srm://srm.pic.es/pnfs/pic.es/data/t2k.org/nd280/',                       'PIC',                  True ],  # confirmed default location for new data
+             'kek2-se01.cc.kek.jp'       :['srm://kek2-se01.cc.kek.jp/t2k.org/nd280/',                               'JPKEKCRC02',           False],
+             'kek2-se.cc.kek.jp'         :['srm://kek2-se.cc.kek.jp/t2k.org/nd280/',                                 'JPKEKCRC02',           False]
+            }
 
 # SRM root directories
-se_roots={}
+se_roots = dict()
 
 # FTS channel name associated with each SRM
-se_channels={}
+se_channels = dict()
 
 # Sites enabled with T2KORGDISK space token
-se_spacetokens={}
+se_spacetokens = dict()
 
 # Fill from master
 for se, [root,channel,token] in se_master.iteritems():
@@ -98,7 +101,7 @@ def processWait(processList=[],limit=0):
     return
 
 ########################
-## Compile the SE root-directory dictionary live from lcg-infosites rather than 
+## Compile the SE root-directory dictionary live from lcg-infosites rather than
 ## hard coding
 def GetLiveSERoots():
     print 'Getting live SE root directories'
@@ -124,11 +127,11 @@ def GetTopLevelDir(storageElement):
     command = "dd if=/dev/zero of="+testFileName+" bs=1048576 count=1"
     print command
     os.system(command)
-        
+
     # Make sure test file is not already registered on LFC
     command= "lcg-del --vo t2k.org -a lfn:/grid/t2k.org/test/"+testFileName+" </dev/null >/dev/null 2>&1"
     os.system(command)
-    
+
     try:
         # Register test file on storage element using relative path name, returns GUID
         # Entry in LFC in the test directory of /grid/t2k.org/
@@ -136,15 +139,15 @@ def GetTopLevelDir(storageElement):
         lines,errors = runLCG(command,is_pexpect=False)
         if errors: raise Exception
 
-                
+
         # Use GUID to retrieve data path to test file, and hence top level directory
         command= "lcg-lr --vo t2k.org " + rmNL(lines[0])
         lines,errors = runLCG(command,is_pexpect=False)
         if errors: raise Exception
-        
+
         surl = lines[0]
         top_level_dir=rmNL(surl.replace(testFileName,""))
- 
+
     # Exception handles access errors, bit of a cludge
     except:
         # Carry on regardless, get data path with error
@@ -156,7 +159,7 @@ def GetTopLevelDir(storageElement):
         if lines:
             command=command.replace('lcg-ls','lcg-del -l')
             runLCG(command,is_pexpect=False)
-            
+
     # Clean up, don't worry about errors
     os.system("rm -f "+testFileName)
     os.system("lcg-del --vo t2k.org -a lfn:/grid/t2k.org/test/"+testFileName)
@@ -176,7 +179,7 @@ def GetTopLevelDir(storageElement):
 ## Get list of Storage Elements
 def GetListOfSEs():
     print 'GetListOfSEs'
-    
+
     try:
         command= "lcg-infosites --vo t2k.org se"
         p      = Popen([command],shell=True,stdin=PIPE,stdout=PIPE,stderr=PIPE)
@@ -184,7 +187,7 @@ def GetListOfSEs():
         errors = p.stderr.readlines()
 
         if errors: raise Exception
-    
+
         seList=[]
         # skip first 2 lines
         for line in lines[2:]:
@@ -212,13 +215,13 @@ def GetListOfCEs():
     print 'GetListOfCEs'
 
     try:
-        command= "lcg-infosites --vo t2k.org ce"    
+        command= "lcg-infosites --vo t2k.org ce"
         p      = Popen([command],shell=True,stdin=PIPE,stdout=PIPE,stderr=PIPE)
         lines  = p.stdout.readlines()
         errors = p.stderr.readlines()
- 
+
         if errors: raise Exception
-        
+
         ceList=[]
         # Skip first 2 lines
         for line in lines[2:]:
@@ -241,7 +244,7 @@ def IsCREAMed(ce):
     p      = Popen([command],shell=True,stdin=PIPE,stdout=PIPE,stderr=PIPE)
     lines  = p.stdout.readlines()
     errors = p.stderr.readlines()
-    
+
     for line in lines:
         if "this CREAM CE is enabled" in line:
             return True
@@ -250,24 +253,24 @@ def IsCREAMed(ce):
 ########################
 ## Print Storage Element Disk Usage
 def PrintSEDiskUsage():
-    
+
     command= "lcg-infosites --vo t2k.org se"
     p      = Popen([command],shell=True,stdin=PIPE,stdout=PIPE,stderr=PIPE)
     lines  = p.stdout.readlines()
     errors = p.stderr.readlines()
-    
+
     print 'Free (TB)  Used(TB)  SE'
     print '-------------------------------------------------'
-    
+
     # skip first 2 lines
     if lines:
         for line in lines[2:]:
-        
+
             words = line.split()
             seFree = words[0]
             seUsed = words[1]
             seName = words[3]
-            
+
             # Ignore manchester and heplnx204.pp.rl.ac.uk (for now)
             if 'manchester'       in seName: continue
             if 'heplnx204'        in seName: continue
@@ -286,7 +289,7 @@ def PrintSEDiskUsage():
 
             # Ignore if free and used both 0
             if seFree == 0 and seUsed == 0: continue
-            
+
             print '%9.2f %9.2f  %s' % (seFree,seUsed,seName)
     else:
         if errors:
@@ -295,7 +298,7 @@ def PrintSEDiskUsage():
 ########################
 ## Print Storage Element Space Usage
 def PrintSESpaceUsage():
-    
+
     command= "lcg-infosites --vo t2k.org space"
     p      = Popen([command],shell=True,stdin=PIPE,stdout=PIPE,stderr=PIPE)
     lines  = p.stdout.readlines()
@@ -304,11 +307,11 @@ def PrintSESpaceUsage():
     print '    Free     Used     Free     Used              Tag SE'
     print '  Online   Online Nearline Nearline (TB)                   '
     print '--------------------------------------------------------------------------------'
-    
+
     # skip first 2 lines
     if lines:
         for line in lines[3:]:
-        
+
             words = line.split()
             onlineFree   = float(words[0])/1024.
             onlineUsed   = float(words[1])/1024.
@@ -316,12 +319,12 @@ def PrintSESpaceUsage():
             nearlineUsed = float(words[4])/1024.
             tag          = words[6]
             se           = words[7]
-            
-            
+
+
             # Ignore if free and used both 0|1
             if onlineUsed <= 1 and onlineUsed <= 1: continue
-            
-            
+
+
             print '%8.2f %8.2f %8.2f %8.2f %16s %s' % (onlineFree,onlineUsed,nearlineFree,nearlineUsed,tag,se)
     else:
         if errors:
@@ -343,7 +346,7 @@ def GetFTS2ActiveTransferList(channel = ''):
 
         lines,errors = runLCG(command)
 
-        if errors: 
+        if errors:
             print "Couldn't access "+channel
             return Fail
 
@@ -389,7 +392,7 @@ def GetActiveTransferList(source='',dest=''):
 
         lines,errors = runLCG(command)
 
-        if errors: 
+        if errors:
             print "Couldn't access "+channel
             return Fail
 
@@ -406,11 +409,11 @@ def GetActiveTransferList(source='',dest=''):
 ## Get status of an FTS transfer:
 def GetTransferStatus(transfer='', SOURCE='', DEST=''):
 
-    Fail = '','','' 
+    Fail = '','',''
     if not transfer: return Fail
 
     if SOURCE : print 'Looking for SOURCE=',     SOURCE
-    if DEST   : print 'Looking for DESTINATION=',DEST  
+    if DEST   : print 'Looking for DESTINATION=',DEST
 
     try:
 
@@ -436,7 +439,7 @@ def GetTransferStatus(transfer='', SOURCE='', DEST=''):
         #         Duration:    <t>
         #
         # (with a blank line in between)
-        
+
 
         # truncate first line and blank lines
         lines = [ l for l in lines[1:] if l.strip() ]
@@ -449,27 +452,27 @@ def GetTransferStatus(transfer='', SOURCE='', DEST=''):
             source   = lines[ i*n_reads*chunk     ].split()[1]
             dest     = lines[ i*n_reads*chunk + 1 ].split()[1]
             state    = lines[ i*n_reads*chunk + 2 ].split()[1]
-            
+
             if SOURCE:
                 if SOURCE != source:
                     continue
-                
+
             if DEST:
                 if DEST != dest:
                     continue
-                    
-            
+
+
             if state in fts3_active_list   : n_active   += 1
             if state in fts3_failed_list   : n_failed   += 1
             if state in fts3_finished_list : n_finished += 1
-            
+
         ## Print message
-        print '%4d active, %4d finished and %4d failed files in : %s' % (n_active,n_finished,n_failed,transfer)              
+        print '%4d active, %4d finished and %4d failed files in : %s' % (n_active,n_finished,n_failed,transfer)
         return n_active,n_failed,n_finished
     except:
         traceback.print_exc()
         return Fail
-        
+
 
 ########################
 ## The GRID is flaky, timeout commands or wrap them in pexpect
@@ -513,15 +516,15 @@ def runLCG(in_command,in_timeout=300, is_pexpect=True):
             # Read output from temp file stripping carriage returns
             fout.seek(0)
             output = [line.strip() for line in fout.readlines()]
-            
+
             # Close and delete temp file
             fout.close()
             os.remove(temp_filename)
-            
+
             # Close the connection to the spawned process
             try:    child.close()
             except: traceback.print_exc()
-    
+
             # Possible outcomes
             if pi == 0:
                 print 'Timeout! ('+str(in_timeout)+'s)'
@@ -530,7 +533,7 @@ def runLCG(in_command,in_timeout=300, is_pexpect=True):
             if pi == 1:
                 lines  = output
                 errors = []
-                break 
+                break
             if pi == 2:
                 print 'ERROR!'
                 print '\n'.join(output)
@@ -549,12 +552,12 @@ def runLCG(in_command,in_timeout=300, is_pexpect=True):
             in_command += ' --bdii-timeout '       +str(in_timeout)
             if 'lcg-ls' in in_command or 'lcg-rep' in in_command or 'lcg-cr' in in_command or 'lcg-cp' in in_command:
                 in_command += ' --srm-timeout '+str(in_timeout)
-                
+
         # Limit the execution time to 5 min
         # - note this only clocks CPU time so zombie
         # processes will last forever..
         command='ulimit -t '+str(max(300,in_timeout))+'\n'+in_command
-        
+
         ## try the command a few times because failures happen on the GRID
         print datetime.now()
         for ii in range(3):
@@ -596,12 +599,12 @@ def getReps(filename):
 
     print 'GetReps for ' + str(filename)
     reps=[]
-    
+
     command="lcg-lr --vo t2k.org " + filename
     lines,errors = runLCG(command)
     if not errors:
         for l in lines:
-            # Get rid of new line and any double // 
+            # Get rid of new line and any double //
             # and then reinstate lost a slash in srm://
             l.replace('\n','').replace('//','/').replace('srm:/','srm://')
             reps.append(l)
@@ -637,7 +640,7 @@ def getMyProxyPwd():
             return rmNL(lines[0])
         else:
             return ''
-    else:    
+    else:
         return ''
 
 ########################
@@ -652,10 +655,10 @@ def runFTS(original_filename,copy_filename):
     ## Implement space token
     srm_b = GetSEFromSRM(copy_filename)
     if se_spacetokens[srm_b]:
-        command+=' -t T2KORGDISK' 
+        command+=' -t T2KORGDISK'
     command+= ' ' + original_filename + ' ' + copy_filename
     lines,errors = runLCG(command)
-            
+
     ## Add this transfer to the transfer log
     transfer_dir=os.getenv("ND280TRANSFERS")
     if not transfer_dir:
@@ -674,13 +677,13 @@ def FileLineCount(filename):
     if os.path.exists(filename):
         for line in open(filename):
             count+=1
-        
+
     return count
 
-## Number of files put in an FTS transfer limit to 200 
+## Number of files put in an FTS transfer limit to 200
 ## since monitoring pages only display 200 files
 ## http://lcgwww.gridpp.rl.ac.uk/cgi-bin/fts-mon/fts-mon.pl?q=jobs&p=day&v=t2k.org
-NTRANSFERS=200                   
+NTRANSFERS=200
 TRANSFER_FILE_LIST=[]
 MAX_TRANSFERS_PER_CHANNEL=600
 
@@ -692,15 +695,15 @@ def runFTSMulti(srm,original_filename,copy_filename,isLastFile=False,ftsInt=0):
 
     # is this a forced copy?
     isForcedCopy=0
-    
+
     ## Environment
     transfer_dir=os.getenv("ND280TRANSFERS")
     if not transfer_dir:
         transfer_dir = os.getcwd()
-    print 'Transfer directory: '+transfer_dir    
+    print 'Transfer directory: '+transfer_dir
     datestring = date.today().isoformat().replace('-','')
     print 'Datestamp:'+datestring
-    
+
     ## Write SRM pairs to filelist
     if original_filename != copy_filename:
         srm_a = GetSEFromSRM(original_filename)
@@ -710,23 +713,23 @@ def runFTSMulti(srm,original_filename,copy_filename,isLastFile=False,ftsInt=0):
         if not len(srm_a):
             print "Source missing!"
             raise Exception
-        if not len(srm_b): 	 
+        if not len(srm_b):
             print "Destination missing!"
             raise Exception
-        if not 'srm' in original_filename: 	 
+        if not 'srm' in original_filename:
             print original_filename + ' not a valid SURL!'
             raise Exception
-        if not 'srm' in copy_filename: 	 
-            print copy_filename + ' not a valid SURL!' 	 
+        if not 'srm' in copy_filename:
+            print copy_filename + ' not a valid SURL!'
             raise Exception
-        
+
         listname=transfer_dir+'/transfer.'+srm_a+'-'+srm_b
         if ftsInt:
             listname+='.'+str(ftsInt)
         listname+='.txt'
-        
+
         print 'Accessing channel:'+listname
-            
+
         ## Add this transfer file to the list if not present
         if (not listname in TRANSFER_FILE_LIST):
             TRANSFER_FILE_LIST.append(listname)
@@ -757,16 +760,16 @@ def runFTSMulti(srm,original_filename,copy_filename,isLastFile=False,ftsInt=0):
     print repr(TRANSFER_FILE_LIST)
 
     for transfer in TRANSFER_FILE_LIST:
-        
+
         ## Submit after NTRANSFERS files in list or file is last in directory
         ## and not the only to be transferred
         nlines = FileLineCount(transfer)
         if nlines>=NTRANSFERS or (isLastFile and nlines>1) or isForcedCopy:
             print 'Using the FTS service'
             print str(nlines)+' files to transfer in this job'
-            
+
             if isLastFile:
-                print original_filename+' is the last file in this directory'            
+                print original_filename+' is the last file in this directory'
 
                 if isForcedCopy:
                     ## Derive SRMs from transfer in case of forced copy
@@ -789,7 +792,7 @@ def runFTSMulti(srm,original_filename,copy_filename,isLastFile=False,ftsInt=0):
                 print 'Could not identify SEs: '+srm_a+' '+srm_b
                 raise Exception
 
-            ## Don't submit any more transfers if already 
+            ## Don't submit any more transfers if already
             ## MAX_TRANSFERS_PER_CHANNEL on the queue, unless these are coming out of kek
             if not 'kek.jp' in srm_a:
                 print 'Checking FTS transfers between %s and %s' % (srm_a,srm_b)
@@ -815,7 +818,7 @@ def runFTSMulti(srm,original_filename,copy_filename,isLastFile=False,ftsInt=0):
             command+=' -m '+os.getenv("MYPROXY_SERVER")
             ## Implement space token
             if se_spacetokens[srm_b]:
-                command+=' -t T2KORGDISK' 
+                command+=' -t T2KORGDISK'
             command+=' -f '+transfer
             # print 'runFTSMulti: '+command
             lines,errors = runLCG(command)
@@ -885,7 +888,7 @@ def GetCurrentRawDataPath(subdet='ND280',det='ND280'):
             if errors         : raise Exception
             if not len(files) : continue
             else              : return (raw_data_folder+'/'+dir).replace('/grid/t2k.org','').strip()
-            
+
     except:
         print 'Unable to get current raw data path for '+str(det)+'/'+str(det)
         print '\n'.join(errors)
@@ -931,12 +934,12 @@ def GetNRawKEKFiles(lfc_dir):
     except:
         traceback.print_exc()
         return 0
-    
+
 ########################
 ## How many good runs in specified LFC directory?
 def GetNGoodRuns(lfc_dir):
     """
-    Query $ND280COMPUTINGROOT/data_scripts/GoodRuns.list for number of 
+    Query $ND280COMPUTINGROOT/data_scripts/GoodRuns.list for number of
     good run files in specified LFC directory
     """
     command = 'grep '+lfc_dir+' $ND280COMPUTINGROOT/data_scripts/GoodRuns.list | wc -l'
@@ -944,7 +947,7 @@ def GetNGoodRuns(lfc_dir):
     p      = Popen([command],shell=True,stdin=PIPE,stdout=PIPE,stderr=PIPE)
     lines  = p.stdout.readlines()
     errors = p.stderr.readlines()
-    
+
     if not errors:
         return int(lines[0])
     else:
@@ -955,7 +958,7 @@ def GetNGoodRuns(lfc_dir):
 def DIRSURL(lfn,srm):
     """
     Return a standardised surl, given an srm.
-    Just returns the input filename if surl originally but transforms 
+    Just returns the input filename if surl originally but transforms
     lfn into surl. Raises error if not gridfile.
     """
     ## Clear out any double //
@@ -1000,47 +1003,103 @@ def GetDefaultSE():
     if not default_se or not default_se in se_roots:
         return "srm-t2k.gridpp.rl.ac.uk"
     return default_se
-    
+
 
 ########################
-## Is VOMS proxy valid?
+def GetDiracProxyTimeLeft():
+    """Check the "timeleft" output from dirac-proxy-info
+    returns an integer value for the number of seconds remaining
+    and the errors from the check
+    """
+    # initialize
+    timeleft = 0
+
+    command = 'dirac-proxy-info'
+    lines, errors = runLCG(command)
+
+    if lines:
+        for a_line in lines.split('\n'):
+            if a_line.find('timeleft') == -1:
+                continue
+            time_string = a_line.split('timeleft')[1]
+            dummy, hr, minutes, seconds = time_string.split(':')
+            timeleft = int(hr)*3600 + int(minutes) * 60 + seconds
+            break
+
+    return timeleft, errors
+
+
+########################
+def CheckDiracProxy():
+    """make sure that the proxy is valid, check against flags"""
+    print 'CheckDiracProxy'
+
+    # initialize
+    timeleft, errors = GetDiracProxyTimeLeft()
+
+    print str(timeleft) + ' seconds remaining'
+
+    if timeleft < status_wait_times.kProxyExpirationThreshold or errors:
+
+        # Wait a few minutes for renewal
+        print 'Waiting a few minutes for proxy renewal'
+        time.sleep(360)
+
+        # Try again
+        timeleft, errors = GetDiracProxyTimeLeft()
+
+        # If still no proxy return invalid status
+        if errors:
+            print '\n'.join(errors)
+        if timeleft < status_wait_times.kProxyExpirationThreshold:
+            return 1
+
+    # Proxy is valid
+    return 0
+
+
+########################
 def CheckVomsProxy():
+    """ Is VOMS proxy valid?
+        0, valid
+        1, invalid
+    """
     print 'CheckVomsProxy'
 
     # initialize
-    timeleft = 0 
-    
-    command= 'voms-proxy-info -timeleft'
-    lines,errors = runLCG(command)
+    timeleft = 0
+
+    command = 'voms-proxy-info -timeleft'
+    lines, errors = runLCG(command)
 
     if lines:
         print lines[0]+' seconds remaining'
         if lines[0].isdigit():
             timeleft = int(lines[0])
-    
-    if errors or timeleft<120:
-        
-        ## Wait a few minutes for renewal
+
+    if errors or timeleft < status_wait_times.kProxyExpirationThreshold:
+
+        # Wait a few minutes for renewal
         print 'Waiting a few minutes for proxy renewal'
         time.sleep(360)
-        
-        ## Try again
-        lines,errors = runLCG(command)
-        timeleft = 0 
+
+        # Try again
+        lines, errors = runLCG(command)
+        timeleft = 0
 
         if lines:
             print lines[0]+' seconds remaining'
             if lines[0].isdigit():
                 timeleft = int(lines[0])
-                
-        ## If still no proxy return 1
+
+        # If still no proxy return 1
         if errors:
             print '\n'.join(errors)
-        if timeleft<120:
-            return 1
+        if timeleft < status_wait_times.kProxyExpirationThreshold:
+            return status_flags.kProxyInvalid
 
-    ## Proxy is valid
-    return 0
+    # Proxy is valid (0)
+    return status_flags.kProxyValid
 
 ########################
 ## Set important environment variables - these are also setup (for the shell, but not subprocesses [e.g on a node]) by nd280Computing/setup.sh
@@ -1051,18 +1110,18 @@ def SetGridEnv():
     if not os.getenv("LFC_HOST") or os.getenv("LFC_HOST") != "lfc.gridpp.rl.ac.uk":
         os.environ["LFC_HOST"]="lfc.gridpp.rl.ac.uk"
 
-    ## Explicitly specify LFC catalogue instead of RLS 
+    ## Explicitly specify LFC catalogue instead of RLS
     if not os.getenv("LCG_CATALOG_TYPE") or os.getenv("LCG_CATALOG_TYPE") != "lfc":
         os.environ["LCG_CATALOG_TYPE"]="lfc"
 
     ## Set LFC Home
     if not os.getenv("LFC_HOME") or os.getenv("LFC_HOME") != "/grid/t2k.org/nd280":
         os.environ["LFC_HOME"]="/grid/t2k.org/nd280"
-    
+
     ## Use GRIDFTP 2
     if not os.getenv("GLOBUS_FTP_CLIENT_GRIDFTP2") or os.getenv("GLOBUS_FTP_CLIENT_GRIDFTP2") != 'true':
         os.environ["GLOBUS_FTP_CLIENT_GRIDFTP2"]='true'
-    
+
     ## BDII
     if not os.getenv("LCG_GFAL_INFOSYS") or os.getenv("LCG_GFAL_INFOSYS") != 'lcg-bdii.gridpp.ac.uk:2170':
         os.environ["LCG_GFAL_INFOSYS"]='lcg-bdii.gridpp.ac.uk:2170'
@@ -1070,7 +1129,7 @@ def SetGridEnv():
     ## MYPROXY SERVER
     if not os.getenv("MYPROXY_SERVER"):
         os.environ["MYPROXY_SERVER"]='myproxy.gridpp.rl.ac.uk'
-        
+
     return 0
 
 ## Set the env when this module is imported, if it isn't set
@@ -1122,7 +1181,7 @@ def RunRange(run):
 ## Strip the SE from an SRM
 def GetSEFromSRM(srm):
     return srm.replace('//','/').replace('srm:/','').split('/')[0]
-    
+
 
 ########################
 ## MySQL query to return list of raw files produced in the last N days
@@ -1130,17 +1189,17 @@ def GetNDaysRawFileList(nDays=10,subDet='nd280'):
 
     command = 'mysql -s -u t2kgsc_reader --password=rdneutgsc -h t2kgscdb.triumf.ca -e "select DS_Directory,File_Name from t2kgscND280.DAQ_FILE_ARCHIVE where Archive_Date >= curdate() - interval '+str(nDays)+' day && File_Name like \'%'+subDet+'_%\'"'
     lines,errors = runLCG(command,is_pexpect=False)
-    
+
     return [ '/'.join(l.split()).strip().replace('/gpfs/fs03/t2k/nd280/barr/archive','lfn:'+os.getenv('LFC_HOME')+'/raw') for l in lines ]
 
 
 ########################
 ## Wrapper function for ND280File.CopyLocal()
 def LocalCopyLFNList(fileList=[],localRoot='',defaultSE='srm-t2k.gridpp.rl.ac.uk'):
-    
+
     # maintain list of failed copies
     listOfFailures = []
-            
+
     # copy files locally
     for fileName in fileList:
 
@@ -1149,7 +1208,7 @@ def LocalCopyLFNList(fileList=[],localRoot='',defaultSE='srm-t2k.gridpp.rl.ac.uk
 
         # define path to local destination which preserves LFC structure
         localDir = lfcDir.replace('lfn:'+os.getenv('LFC_HOME'),localRoot)
-    
+
         # create destination directory if necessary
         if not os.path.exists(localDir):
             print 'Making local directory '+localDir
@@ -1174,7 +1233,7 @@ def LocalCopyLFNList(fileList=[],localRoot='',defaultSE='srm-t2k.gridpp.rl.ac.uk
                 listOfFailures.append(fileName)
         else:
             print localPath+' exists!'
-                
+
     if len(listOfFailures):
         print '%d failures:' % (len(listOfFailures))
         for fail in listOfFailures: print fail
@@ -1186,7 +1245,7 @@ def LocalCopyLFNList(fileList=[],localRoot='',defaultSE='srm-t2k.gridpp.rl.ac.uk
 ## Given a logical path to a log file, query it for the *.root files created by the job and determine
 ## if they exist in the LFC
 def LogFileConsistencyCheck(logFileLFN=''):
-    
+
     logFileName = logFileLFN.split('/')[-1]
 
     # does a local copy exist?
@@ -1224,7 +1283,7 @@ def LogFileConsistencyCheck(logFileLFN=''):
 
         # determine processing stage
         stage = r.split('_')[5]
-        
+
         # try and make a file object
         try:
             # logical path to root file
@@ -1264,14 +1323,14 @@ def GetConfigNameFromInput(inputPath=''):
 ########################
 ## does exactly what it says on the tin
 def FindAndReplaceStringInFile(filepath='',findstring='',replacestring=''):
-    
+
     fin      = open(filepath,'rb')
     instring = fin.read()
     fin.close()
 
     if findstring in instring:
         print 'replacing %s with %s in %s ' % (findstring,replacestring,filepath)
-    
+
     outstring = instring.replace(bytes(findstring),bytes(replacestring))
     fout      = open(filepath,'wb')
     fout.write(outstring)
@@ -1311,12 +1370,12 @@ class ND280File:
             SetGridEnv()
 
         ## Get rid of any new lines and trailing slashes
-        fn           =fn.strip().rstrip('/') 
+        fn           =fn.strip().rstrip('/')
         self.filename=fn.split('/')[len(fn.split('/'))-1]
         self.path=    fn.replace(self.filename,'')
 
         self.turl='' ## transfer url used by some file systems
-        
+
         ## Get the replicas of this file
         self.reps=[]
         self.alias=''
@@ -1353,7 +1412,7 @@ class ND280File:
                 self.gridfile=''
         except:
             raise self.Error('Unable to establish file type of '+fn)
-            
+
         ## File type, p=processed, r=raw, m=MC, o=other, n=none
         if 'oa_nd_' in self.filename:
             self.filetype='p'
@@ -1368,7 +1427,7 @@ class ND280File:
             self.filetype='o'
 
 
-        
+
     def __del__(self):
         """ Clean up after the object. If you have requested a turl then set file status to done. """
         ## If you have a turl set the file state to done.
@@ -1378,7 +1437,7 @@ class ND280File:
             rtc=os.system(command)
             if rtc:
                 raise self.Error('Could not set done file turl ' + self.turl[0] + ' located at ' + self.turl[1])
-    
+
     ### Internal Error class for raising errors
     class Error(Exception):
         pass
@@ -1424,7 +1483,7 @@ class ND280File:
     def GetRunRange(self):
         """ Gets the range in which this run lies: 00001000-00001999, 00002000-00002999 ... etc """
         runno=int(self.GetRunNumber())
-                          
+
         return RunRange(runno)
 
     ########################
@@ -1469,7 +1528,7 @@ class ND280File:
         Return a standardised Logical File Name.
         Just returns the input filename if LFN originally but transforms srm into lfn. Raises error if not gridfile.
         """
-        
+
         if self.gridfile:
             return self.alias
         else:
@@ -1489,7 +1548,7 @@ class ND280File:
                 return r,1
 
         pathsplit=self.alias.split("/")
-        
+
         if self.gridfile:
             i=pathsplit.index("t2k.org") ## Should always be 2 0=lfn:, 1=grid, 2=t2k.org
             surl=se_roots[srm].rstrip('/')
@@ -1502,7 +1561,7 @@ class ND280File:
             #elif 't2ksrm.nd280.org' in srm:
             #    i+=2
             #    surl+='/nd280data'
-                
+
             fileparts=pathsplit[i+2:] #Start from nd280 version
 
             for fp in fileparts:
@@ -1518,7 +1577,7 @@ class ND280File:
 
     #### Is a GRID file on SRM
     def OnSRM(self,srm):
-        """ 
+        """
         Check to see if the current file exists on a particular srm.
         If it does then return the full filename, else throw and error.
         On LFC is a moot point as all ND280Files have to be registered
@@ -1554,7 +1613,7 @@ class ND280File:
                 for r in self.reps:
                     if 'qmul.ac.uk' in r:
                         srmname=r
-                        
+
                 print 'srm name ' + srmname
                 if srmname:
                     command="lcg-gt " + srmname + " file"
@@ -1594,7 +1653,7 @@ class ND280File:
             for r in self.reps:
                 if srm in r:
                     return r
-        
+
         ## Prioritise RAL
         for r in self.reps:
             if 'srm-t2k.gridpp.rl.ac.uk' in r:
@@ -1618,10 +1677,10 @@ class ND280File:
         print 'CopySRM()'
 
         original_filename=self.GetRepSURL()
-        
+
         ## remove errant '//' ignoring the first 10 characters
         original_filename = original_filename[:10] + original_filename[10:].replace('//','/')
-       
+
         print 'Original filename '+original_filename
 
         if not self.gridfile:
@@ -1635,13 +1694,13 @@ class ND280File:
         elif srm in original_filename and (not isLastFile) and use_fts:
             print 'Already on srm ' + original_filename
             return original_filename
-        
+
         copy_filename,on_srm=self.SURL(srm)
         print 'Copy filename ' + copy_filename
         if (on_srm and not use_fts) or (on_srm and use_fts and not isLastFile):
             print 'Already on srm ' + copy_filename
             return copy_filename
-        
+
         if use_fts:
             ## first if original file is at RAL, make sure it is staged on disk,
             ## otherwise FTS will timeout
@@ -1652,10 +1711,10 @@ class ND280File:
                 else:
                     if not 'ONLINE' in lines[0].split()[5]:
                         runLCG('lcg-bringonline '+original_filename, in_timeout=7200,is_pexpect=False)
-            
+
             ## Use the FTS service 23-11-10
             return runFTSMulti(srm,original_filename,copy_filename,isLastFile,ftsInt)
-        else:            
+        else:
             command='lcg-rep -v -n 3 '
             if se_spacetokens[srm]:
                 command+=' -S T2KORGDISK'
@@ -1692,11 +1751,11 @@ class ND280File:
                     if lines:
                         if 'lcg-bringonline: Success' in lines[0]:
                             print lines[0]
-                    else:   
+                    else:
                         lines,errors = runLCG('lcg-ls -l '+original_filename)
                         if not 'ONLINE' in lines[0].split()[5]:
                             raise self.Error('lcg-bringonline of '+original_filename+' did not bring file online')
-  
+
         command='lcg-cp ' + original_filename + ' ' + copy_filename
         lines,errors = runLCG(command,in_timeout=3600,is_pexpect=False) ### timeouts added by hand when not using pexpect
         if errors:
@@ -1706,7 +1765,7 @@ class ND280File:
         ### 6A verification control sample names break nd280Control - rename them
         ### refer to http://www.hep.lancs.ac.uk/nd280Doc/stable/invariant/nd280Control/fileNaming.html
         if self.filename.startswith('oa_') and '_ctl-' in self.filename[:15]:
-            # first remove '-' instances from 3rd (ppp) field 
+            # first remove '-' instances from 3rd (ppp) field
             ppp         = self.filename.split('_')[2]
             newfilename = self.filename.replace(ppp,ppp.replace('-',''))
             # now move second run_subrun instance to comment field
@@ -1714,11 +1773,11 @@ class ND280File:
             newfilename = newfilename.replace('-'+nnn,'')
             newfilename = newfilename.replace('.root',nnn+'.root')
             newfilename = dir +'/' + newfilename
-            
+
             print 'renaming '+copy_filename+' to '+newfilename
             os.rename(copy_filename,newfilename)
             return newfilename
-        
+
         return copy_filename
 
     ########################################################################################################################
@@ -1727,7 +1786,7 @@ class ND280File:
 
     def Register(self,lfn='',srm='srm-t2k.gridpp.rl.ac.uk', timeout=300):
         """
-        For local files: 
+        For local files:
              first copy to grid.
              lfn=the LFC directory wished for the file
              srm=the srm to copy to, default is the RAL srm
@@ -1735,7 +1794,7 @@ class ND280File:
              lfn=the files own alias
              srm=the SURL to register, or the SRM on which to register
         """
-        
+
         ## Local files, lcg-cr
         if not self.gridfile:
 
@@ -1746,7 +1805,7 @@ class ND280File:
             if not lfn.endswith('/') : lfn += '/'
 
             dest_file = DIRSURL(lfn,srm) + '/' + self.filename
-                    
+
             ## Remove any errant '//' ignoring the first 10 characters
             dest_file = dest_file[:10] + dest_file[10:].replace('//','/')
 
@@ -1756,7 +1815,7 @@ class ND280File:
                 command+=' -s T2KORGDISK'
             command+=' -d ' + dest_file + ' -l ' + lfn + self.filename + ' file:' + self.path + self.filename
             lines,errors = runLCG(command,in_timeout=timeout)
-            
+
             ## Check for existence of replica:
             command = 'lcg-ls ' + dest_file
             lines,errors = runLCG(command)
@@ -1774,11 +1833,11 @@ class ND280File:
                     lines,errors = runLCG(command,in_timeout=timeout)
 
                     ## Check for existence of replica:
-                    command = 'lfc-ls -l ' + lfn.replace('lfn:','') + self.filename 
+                    command = 'lfc-ls -l ' + lfn.replace('lfn:','') + self.filename
                     lines,errors = runLCG(command)
                     if not errors:
                         return lfn + self.filename
-                
+
                 raise self.Error('Error copying local file to the GRID\n',errors)
             else:
                 return lfn + self.filename
@@ -1789,17 +1848,17 @@ class ND280File:
                 dest_file = srm
             else:
                 dest_file, on_srm = self.SURL(srm)
-                
+
             command= 'lcg-rf --vo t2k.org -g ' + self.guid + ' ' + dest_file
             lines,errors = runLCG(command)
-            
+
             if errors:
                 print '\n'.join(errors)
                 raise self.Error('Unable to register ' +self.filename)
             else:
                 print "\n".join(lines)
                 return self.filename
-            
+
 
 #############################################################################################################
 ########### ND280Dir Class
@@ -1807,9 +1866,9 @@ class ND280File:
 
 class ND280Dir:
 
-    """ 
+    """
     A class that allows one to do useful things with local and lfc directories.
-    
+
     """
 
     ########################
@@ -1846,10 +1905,10 @@ class ND280Dir:
                     ## field is blank
                     if len(line.split())<9:
                         print 'Skipping blank file!!!', line
-                        
+
                     line_spl=line.split()
                     TotalFN=line_spl[len(line_spl)-1]
-                    
+
                     ## Dictionary of file objects for quick useage/comparison
                     justFN=TotalFN.split('/')[len(TotalFN.split('/'))-1]
                     self.dir_dic[justFN] = line_spl[4]
@@ -1866,7 +1925,7 @@ class ND280Dir:
                             print 'WARNING: '+justFN+' will be ignored!'
                     if f:
                         self.ND280Files.append(f)
-                        
+
             else:
                 raise self.Error('Could not list files in lfc directory' + self.dir)
 
@@ -1882,7 +1941,7 @@ class ND280Dir:
             lines,errors = runLCG(command,is_pexpect=False)
             if not errors:
                 for line in lines:
-                    
+
 ##                     ## First of all ignore local sub-directories
 ##                     if os.path.isdir(self.dir + '/' + file):
 ##                         continue
@@ -1926,9 +1985,9 @@ class ND280Dir:
                 if errors:
                     raise self.Error('Could not remove file ', command, errors)
         return 0
-    
+
     def HashDiff(self,other_dir):
-        """ diff two differnet ND280 directories using file hashes        
+        """ diff two differnet ND280 directories using file hashes
         """
 
         ## compile lists of the self directory
@@ -1940,10 +1999,10 @@ class ND280Dir:
         other_dir.filehashes={}
         for f in other_dir.ND280Files:
             other_dir.filehashes[f.GetFileHash()]=(file)
-            
+
         ## Do the comparisons
         diff_ls=[]
-        
+
         for hash,file in self.filehashes.iteritems():
             if not hash in other_dir.filehashes:
                 diff_ls.append(self.dir + file)
@@ -1965,7 +2024,7 @@ class ND280Dir:
         other_dir.runs={}
         for f in other_dir.ND280Files:
             other_dir.runs[f.GetRunNumber() + '-' + f.GetSubRunNumber()]=(f)
-            
+
         ## Do the comparisons
         diff_ls=[]
 
@@ -1994,7 +2053,7 @@ class ND280Dir:
 
             if good_list:
                 print good_list_name+' open'
-                
+
                 # Read files
                 good_files = good_list.readlines()
 
@@ -2007,11 +2066,11 @@ class ND280Dir:
                 print 'good_files:'
                 for gf in good_files:
                     print gf
-                
+
                 good_list.close()
             else:
                 raise self.Error('SyncSRM: Could not open '+good_list_name)
-        
+
         for f in self.ND280Files:
             # Check whether this is the last file (important for FTS)
             if f.filename == self.last_file_name:
@@ -2041,7 +2100,7 @@ class ND280Dir:
             except:
                 failures+=1
                 print 'SyncSRM Copy '+f.filename+' to srm: '+srm+'  failed'
-                
+
         if failures:
             # Clean up FTS files
             if use_fts and TRANSFER_FILE_LIST:
@@ -2063,7 +2122,7 @@ class ND280Dir:
                 raise self.Error('Trying to synchronise two lfc directories ' + self.dir + ' and ' + new_dir.dir)
             else:
                 raise self.Error('Trying to synchronise two local directories ' + self.dir + ' and ' + new_dir.dir)
-            
+
         if self.griddir:
             for f in self.ND280Files:
                 # skip files not containing sync_pattern, '' always true
@@ -2114,7 +2173,7 @@ class ND280Dir:
 #############################################################################################################
 ########### ND280JDL Class
 #############################################################################################################
-            
+
 class ND280JDL:
     """ A class that defines a JDL file for a t2k.org job.
     Each of the following must be defined,
@@ -2155,12 +2214,12 @@ class ND280JDL:
                 raise self.Error('The file ' + self.input.filename + ' is a raw data file, please specify the trigger type via the options[\'trigger\']')
             else:
                 self.SetupProcessJDLFile()
-        self.SetupProcessJDLFile()        
+        self.SetupProcessJDLFile()
 
     ### Internal Error class for raising errors
     class Error(Exception):
         pass
-    
+
     def CreateJDLFile(self,dir=''):
         """ Generic creation of a JDL file, all specifics are to be written in a setup function E.g. SetupProcessJDLFile """
 
@@ -2240,10 +2299,10 @@ class ND280JDL:
     ########################################################################################################################
     ##################### Setup functions for each job type ################################################################
     ########################################################################################################################
-    
+
     def SetupProcessJDLFile(self):
         """ Create a Raw data or MC processing jdl file. The one and only argument is the event type to process: spill or cosmic trigger. """
-  
+
         # Define the JDL file name... there are quite a few steps
         self.jdlname = 'ND280' + self.jobtype
         # Don't add trigger to JDL for non runND280 jobs
@@ -2261,7 +2320,7 @@ class ND280JDL:
                     if '=' in line:
                         key,value             = line.split('=')
                         custom_list_dict[key] = value
-                
+
                 if 'runCode' in custom_list_dict:
                     self.jdlname += '_' + custom_list_dict['runCode']
 
@@ -2271,20 +2330,20 @@ class ND280JDL:
                 if 'subrunOffset' in custom_list_dict:
                     subrun += int(custom_list_dict['subrunOffset'])
                 self.jdlname += '_%04d' % (subrun)
-                
+
         else:
             if self.input.GetRunNumber():
                 self.jdlname += '_' + self.input.GetRunNumber() + '_' + self.input.GetSubRunNumber()
             else:
                 self.jdlname += '_' + self.input.filename.rstrip('.root').replace('.','_')
-            
+
         if self.input.filetype=='c':
-            self.executable = 'ND280'+self.jobtype+'_testbeam.py'			
+            self.executable = 'ND280'+self.jobtype+'_testbeam.py'
         elif self.input.filetype=='p':
             self.jdlname+='_' + self.input.GetFileHash() + '_' + self.input.GetStage()
             self.executable = 'ND280'+self.jobtype+'_process.py'
         else:
-            self.executable = 'ND280'+self.jobtype+'_process.py'		
+            self.executable = 'ND280'+self.jobtype+'_process.py'
         self.jdlname+='.jdl'
         self.arguments = '-v ' + self.nd280ver
 
@@ -2316,9 +2375,9 @@ class ND280JDL:
             self.arguments += ' --POT ' + self.options['POT']
         if 'highlandVersion' in self.options:
             self.arguments += ' --highlandVersion ' + self.options['highlandVersion']
-            
+
         ## Tools directory and the chosen executable are automatically included in InputSandbox
-        self.inputsandbox = [] 
+        self.inputsandbox = []
 
         ## If input is a local file, add it to InputSandbox and set the correct input path
         if not self.input.gridfile:
@@ -2332,7 +2391,7 @@ class ND280JDL:
                 self.arguments += ' -i ' + self.input.filename
         else:
             self.arguments += ' -i ' + self.input.alias
-        
+
         # Define paths to stdout and stderr
         self.stdoutput = 'ND280'+self.jobtype+'.out'
         self.stderror  = 'ND280'+self.jobtype+'.err'
@@ -2346,7 +2405,7 @@ class ND280JDL:
 class ND280JID:
     """ A class that allows for a the checking and retriving of info from a JID file
     from previous script ~/GRIDTest/ND280Install/middle_processing/standard/CheckRunND280RunsStatus.py
-    
+
     """
     def __init__(self, jidfile,jobno=''):
         """ Initialise the JDL object """
@@ -2377,7 +2436,7 @@ class ND280JID:
             else:
                 print "There are just ", max, " ids in this file so cannot choose ", self.jobno , " going with ", max
                 child.sendline(max)
-    
+
         #### Get the current status
         child.expect("Current Status: \s+([a-zA-Z0-9_]+)")
         self.status = child.match.groups()[0]
@@ -2386,7 +2445,7 @@ class ND280JID:
             ## print "Status: ", self.status
             child.expect("Exit code: \s+([0-9]+)")
             self.exitcode = child.match.groups()[0]
-        
+
 ##        child.expect("Status Reason:  \s+(.+?)")
         child.expect("Status Reason:  \s+([a-zA-Z0-9_]+)")
         self.statusreason=child.match.groups()[0]
@@ -2427,7 +2486,7 @@ class ND280JID:
         if errors:
             return ''
         return outdir
-    
+
     ## A bunch of bool functions
     def IsDone(self):
         if 'Done' in self.status:

@@ -1,37 +1,36 @@
 #!/usr/bin/env python
 
 """
-A bunch of handy commands for use with the ND280 software on the grid or locally.
-
-The object allows one to list information of packages, disable packages and install software.
-
+A bunch of handy commands for use with the ND280 software
+on the grid or locally. The object allows one to list
+information of packages, disable packages and install software.
 """
 import sys
-import re
-import tempfile
 import os
-import optparse
-import shutil
-import stat
 import glob
-import smtplib
-
-from email.MIMEText import MIMEText
+from datetime import datetime
+from time import time
+# import smtplib
+# from email.MIMEText import MIMEText
+# import optparse
+# import shutil
+# import stat
+# import re
+# import tempfile
 
 import ND280GRID
-from ND280GRID     import ND280Dir
-from ND280GRID     import ND280File
-from ND280GRID     import rmNL
-from ND280GRID     import runLCG
-from ND280Configs  import ND280Config
+# from ND280GRID     import ND280Dir
+from ND280GRID import ND280File
+# from ND280GRID     import rmNL
+from ND280GRID import runLCG
+from ND280Configs import ND280Config
 from ND280Software import ND280Software
-from datetime      import datetime
-from time          import time
 
-class ND280Job:
+
+class ND280Job(object):
     """ Base class for all types of ND280 Job: Raw data, beam MC etc etc"""
 
-    def __init__(self,nd280ver):
+    def __init__(self, nd280ver):
         self.input           = ''
         self.highlandVersion = ''
         self.neutVersion     = ''
@@ -42,10 +41,15 @@ class ND280Job:
         self.software        = ND280Software(nd280ver)
         if os.getenv("SITE_NAME"):
             self.sitename = os.getenv("SITE_NAME")
-            self.sitename = self.sitename.replace('UKI-','') 	 
+            self.sitename = self.sitename.replace('UKI-','')
             self.sitename = self.sitename.lower()
         else:
             self.sitename = ''
+
+        # Unless every instance of voms -> dirac has been checked,
+        # set dirac to be true here and change it manually if need
+        # to use false otherwise
+        self.dirac = True
 
         ## Copy vector file to working directory for respins
         self.localVector = ''
@@ -63,7 +67,7 @@ class ND280Job:
         sys.stdout.flush()
         print datetime.now()
         print 'RunCommand():\n'+in_command
-        
+
         """ Source the required setups before executing local commands """
         instDir = self.t2ksoftdir + '/nd280' + self.nd280ver + '/'
         command='umask 002\n'
@@ -72,7 +76,7 @@ class ND280Job:
         if os.path.exists(os.getenv('VO_T2K_ORG_SW_DIR')+'/CMT'):
             cmtSetupScr=os.getenv('VO_T2K_ORG_SW_DIR')+'/CMT/v1r20p20081118/mgr/setup.sh'
         else:
-            cmtSetupScr=instDir + 'CMT/setup.sh' 
+            cmtSetupScr=instDir + 'CMT/setup.sh'
 
         if os.path.isfile(cmtSetupScr):
             command += 'source ' + cmtSetupScr + '\n'
@@ -90,14 +94,14 @@ class ND280Job:
             print 'Prepending CMTPATH with %s' % self.custom_list_dict['cmtpathPrepend']
 
             if not os.path.exists(self.custom_list_dict['cmtpathPrepend']):
-                raise  self.Error('%s does not exist' % self.custom_list_dict['cmtpathPrepend'])                
+                raise  self.Error('%s does not exist' % self.custom_list_dict['cmtpathPrepend'])
 
             command += 'export CMTPATH=%s:$CMTPATH\n' % self.custom_list_dict['cmtpathPrepend']
 
             ## also need to source setup script in associated module in order to fix PATH and LD_LIBRARY_PATH...
             ## look for setup script in the prepended folder first
             if os.path.isfile(self.custom_list_dict['cmtpathPrepend']+'/setup.sh'):
-                prepend_cmt_folder = self.custom_list_dict['cmtpathPrepend']                    
+                prepend_cmt_folder = self.custom_list_dict['cmtpathPrepend']
             ## otherwise find the module associated with the prepended folder
             else:
                 prepend_cmt_folder = glob.glob(self.custom_list_dict['cmtpathPrepend']+'/*/*/cmt')[0]
@@ -112,14 +116,14 @@ class ND280Job:
                 raise self.Error('Could not find the setup script ' + gblSetupScr)
 
         ## sometimes the software installs in the wrong location because
-        ## the underlying linux kernel query returns the wrong system type, 
+        ## the underlying linux kernel query returns the wrong system type,
         ## make sure CMT knows where to look for the software
         for sysType in 'Linux-x86_64', 'amd64_linux26', 'ND280GRIDBinaries':
             if os.path.exists(instDir + 'nd280/' + self.nd280ver + '/' + sysType):
                 print 'Setting CMTCONFIG to '+sysType
                 command+='export CMTCONFIG='+sysType+'\n'
 
-        ## Add ENV_TSQL_URL setting here 
+        ## Add ENV_TSQL_URL setting here
         if self.useTestDB:
             sql_cascade  = 'export ENV_TSQL_URL=\"mysql://trcaldb.t2k.org/testnd280calib;mysql://dpnc.unige.ch/nd280calib\;mysql://trbsddb.nd280.org/t2kbsd"\n'
             sql_cascade += 'export ENV_TSQL_USER=\"t2kcaldb_reader;t2kcaldb_reader;t2kbsd_reader\"\n'
@@ -140,29 +144,35 @@ class ND280Job:
         command += in_command
 
         return os.system(command)
-        
 
     class Error(Exception):
         pass
 
-    ########################################################################################################################
+    ###########################################################################
     def TestCopy(self, dirBegin='', dirEnd='', dirSuff='', srm=''):
         """
-        Function that performs a test copy to the log file directory associated with the job.
+        Function that performs a test copy to the log file
+        directory associated with the job.
         If the test copy fails then the job exits and returns an error.
         """
         sys.stdout.flush()
         print 'TestCopy'
-        
-        if ND280GRID.CheckVomsProxy():
-            sys.exit('No valid proxy!')
+
+        proxy_status = ND280GRID.status_flags.PROXY_INVALID
+        if self.dirac:
+            proxy_status = ND280GRID.CheckDiracProxy()
+            if proxy_status != ND280GRID.status_flags.PROXY_VALID:
+                sys.exit('No valid proxy!')
+        else:
+            if ND280GRID.CheckVomsProxy():
+                sys.exit('No valid proxy!')
 
         # Construct logical file name for test copy
         lfn = dirBegin + '/logf'
         if dirSuff: lfn += dirSuff             # append a _suffix to logf?
         lfn += '/' + dirEnd                    # append a subdirectory?
         lfn=lfn.replace('//','/').rstrip('/')  # remove extraneous //
-        
+
         # Make sure we're in the working directory for the job
         os.chdir(self.base)
 
@@ -173,7 +183,7 @@ class ND280Job:
         for i in xrange(100000):
             testFile.write('testing 123\n')
         testFile.close()
- 
+
         ## First make sure file doesn't already exist
         command = 'lfc-ls ' + lfn.replace('lfn:','') +'/' + testName
         if not os.system(command):
@@ -185,7 +195,7 @@ class ND280Job:
         if not testFile.Register(lfn+'/', srm):
             print 'Not able to register %s !' % testName
             sys.exit(1)
-            
+
         ## Then delete
         command = 'lcg-del -a ' + lfn + '/' + testName
         lines,errors = runLCG(command)
@@ -199,22 +209,22 @@ class ND280Job:
         sys.stdout.flush()
         print 'CopyAll'
 
-        try: 
+        try:
             print 'CE='+os.getenv("CE_ID")
-        except: 
+        except:
             print 'Unable to identify CE'
 
         print 'Listing directory contents...'
         lines,errors = runLCG('ls -lh',is_pexpect=False)
         print '\n'.join(lines+errors)
-        
+
         self.CopyConfFile       (dir_prot, dir_end, dirsuff, srm)
         self.CopyLogFile        (dir_prot, dir_end, dirsuff, srm)
         self.CopyCatalogueFiles (dir_prot, dir_end, dirsuff, srm)
         self.CopyRootFiles      (dir_prot, dir_end, dir_list, dirsuff, srm)
 
         return 0
-    
+
     def CopyLogFile(self, dir_prot, dir_end='', dirsuff = '', srm=''):
         """ Copy the log file. """
 
@@ -228,12 +238,12 @@ class ND280Job:
         curr_export_dir = curr_export_dir.replace('//','/')
 
         os.chdir(self.base)
-        
+
         for log_file in glob.glob('*.log'):
             f = ND280File(log_file)
             if not f.Register(curr_export_dir,srm):
                 sys.exit('Log file missing from output')
-            
+
 
         return 0
 
@@ -325,23 +335,23 @@ class ND280Job:
         print 'LogFileCheck'
 
         os.chdir(self.base)
-        
+
         for file_name in glob.glob('oa_*.log'):
             if '_logf_' in file_name:
                 log_name = file_name
-                break            
+                break
 
         log_lines = open(log_name,'r').readlines()
-        
+
         for l in log_lines:
             for diedBy in 'FATAL ERROR','Uncaught exception in','Disabling module BeamSummaryData','Segmentation fault':
                 if diedBy in l:
                     print '%s detected in %s' % (diedBy, log_name)
                     print ''.join(log_lines)
                     return 1
-        
+
         return 0
-    
+
 
     def CopyRootFiles(self,dir_prot, dir_end='', dir_list=[], dirsuff='', srm=''):
         """ Copy and register the root files """
@@ -353,13 +363,13 @@ class ND280Job:
         os.chdir(self.base)
         filelist  = os.listdir(os.getcwd())
 
-        # Get the list of ROOT files, ignoring any NEUT/GENIE geometry files as these also have the 
+        # Get the list of ROOT files, ignoring any NEUT/GENIE geometry files as these also have the
         # _numc_ or _gnmc_ tag, so can corrupt the {stage:filename} dictionary
         rootfiles = [ f for f in filelist if f.endswith('.root') and not f.endswith('.geo.root')]
         print 'ROOT files in '+self.base +':'
         print '\n'.join(rootfiles)
-        
-        # Create a file dictionary of {stage:filename} 
+
+        # Create a file dictionary of {stage:filename}
         filedict = {}
         for f in rootfiles:
             filedict[f.split('_')[5]] = f
@@ -370,7 +380,7 @@ class ND280Job:
         if missing:
             sys.exit('ROOT file(s):'+' '.join(missing)+' missing from output')
 
-        #Copy files to GRID           
+        #Copy files to GRID
         for stage,filename in filedict.iteritems():
 
             # be careful not to pick up files (like the input) not in the dir_list
@@ -388,7 +398,7 @@ class ND280Job:
 
             # remove any extraneous double slashes
             curr_export_dir = curr_export_dir.replace('//','/')
-            
+
             # create a file instance and register
             curr_file = ND280File(filename)
             copy_ok   = ''
@@ -397,7 +407,7 @@ class ND280Job:
             # should remove all output if there is a failure...
             if not copy_ok:
                 sys.exit("ROOT file "+filename+" failed lcg-cr")
-        return 0                
+        return 0
 
 
     def LocateVectorFile(self,vectorPath=''):
@@ -410,12 +420,12 @@ class ND280Job:
             vectorDir    = vectorPath
             command      = 'lfc-ls '+vectorDir
             lines,errors = ND280GRID.runLCG(command)
-            
-            ## If there are files in this directory, try and 
+
+            ## If there are files in this directory, try and
             ## locate the correct one
             vectors    = [l for l in lines if self.input.GetRunNumber()+'-'+self.input.GetSubRunNumber()+'_'+self.input.GetFileHash() in l]
             vectorName = vectors[0]
-        
+
         else:
             inputPath = self.input.alias.replace('//','/')
             production,respin = inputPath.split('/')[4:6]
@@ -428,9 +438,9 @@ class ND280Job:
 
             ## Loop over available production tags
             for tag in lines:
-                ## Try all types of vector type            
+                ## Try all types of vector type
                 for type in 'numc','nucp':
-                    
+
                     ## Determine directory path from input path
                     vectorDir = '/'.join(inputPath.split('/')[:-2]).replace('lfn:','')
                     vectorDir = vectorDir.replace('/'+respin+'/','/'+tag+'/')
@@ -442,7 +452,7 @@ class ND280Job:
                     lines,errors = ND280GRID.runLCG(command)
 
                     if lines:
-                        ## If there are files in this directory, try and 
+                        ## If there are files in this directory, try and
                         ## locate the correct one
                         vectors = [l for l in lines if self.input.GetRunNumber()+'-'+self.input.GetSubRunNumber()+'_'+self.input.GetFileHash() in l]
 
@@ -479,7 +489,7 @@ class ND280Job:
             if os.path.exists(self.localVector):
                 os.remove(self.localVector)
 
-                
+
     ## Set function for NEUT version (called in ND280MC_process.py)
     def SetNEUTVersion(self,neutVersion=''):
         self.neutVersion = neutVersion
@@ -488,13 +498,12 @@ class ND280Job:
     def SetHighlandVersion(self,highlandVersion=''):
         self.highlandVersion = highlandVersion
 
-                    
 
 class ND280Process(ND280Job):
     """Run the nd280 software on raw or MC data """
 
     def __init__(self, nd280ver, input, jobtype, evtype='', modules='', config='', dbtime='', fmem=20971520, vmem=4194304, tlim=86400):
-        ND280Job.__init__(self,nd280ver)
+        super(ND280Process, self).__init__(nd280ver)
         if type(input)==str:
             self.input=ND280File(input)
         else:
@@ -521,10 +530,9 @@ class ND280Process(ND280Job):
                 if '=' in line:
                     key,value = line.split('=')
                     self.custom_list_dict[key] = value
-                    
+
                     ## and add to configs (only valid options will be implemented by ND280Configs.py)
                     self.config_options[key] = value
-
 
             print 'Custom list dict:'
             print self.custom_list_dict
@@ -535,14 +543,14 @@ class ND280Process(ND280Job):
 
         self.evtype     = evtype
         self.quicktest  = 'false'
-        self.memcommand = 'ulimit -f '+str(fmem)+'\nulimit -v '+str(vmem)+'\nulimit -a\nulimit -t '+str(tlim)+'\n'        
+        self.memcommand = 'ulimit -f '+str(fmem)+'\nulimit -v '+str(vmem)+'\nulimit -a\nulimit -t '+str(tlim)+'\n'
 
         ## Don't make a configuration file for non runND280 jobs
-        if not jobtype in ND280GRID.NONRUNND280JOBS: 
+        if not jobtype in ND280GRID.NONRUNND280JOBS:
             ## Create a configfilename
             cfgfn = ND280GRID.GetConfigNameFromInput(self.input.filename)
             self.configfile = ND280Config(jobtype,cfgfn)
-        
+
 
     def SetQuick(self):
 	    self.quicktest='true'
@@ -562,7 +570,7 @@ class ND280Process(ND280Job):
             f = ND280File(override)
             self.localfile = f.CopyLocal(self.base,ND280GRID.GetDefaultSE())
             return
-            
+
         ## If exception is raised by getting the turl then do a local copy
         print 'self.input.filename = ', self.input.filename
         print 'self.input.path     = ', self.input.path
@@ -576,24 +584,24 @@ class ND280Process(ND280Job):
         else:
             self.localfile = self.input.filename
             print self.input.filename + ' is local'
-        
+
     def RunRaw(self):
         print 'RunRaw()'
-        
+
         ### Get local input file
         self.GetLocalFile()
-        
+
         if not self.localfile:
             raise self.Error('Error obtaining file to process.')
 
         ### control sample filenames coud be corrupting n280Control...
-        
+
         ### Raw Data Options: Dictionary of options specific to Raw data processing cfg files
         if self.quicktest=='true':
             self.config_options['comment']=self.nd280ver+'_q100'
         else:
             self.config_options['comment']=self.nd280ver+'-'+self.sitename
-		
+
         ## If it is a processed file then this is a respin!
         if self.input.filetype=='p':
             self.config_options['inputfile']=self.localfile
@@ -632,9 +640,9 @@ class ND280Process(ND280Job):
             if not self.config_options['module_list']:
                 self.config_options['module_list']='oaUnpack oaCalib oaRecon oaAnalysis'
             self.config_options['event_select']=self.evtype
-     
+
         if self.quicktest=='true':
-            self.config_options['num_events'] = '100'			
+            self.config_options['num_events'] = '100'
         self.configfile.SetOptions(self.config_options)
         self.configfile.CreateConfig()
         self.configfile.StdOut()
@@ -645,7 +653,7 @@ class ND280Process(ND280Job):
         if rtc:
             self.PrintLogs()
             sys.exit("failed to source scripts and execute RunRaw on " + self.configfile.config_filename + " with input " + self.input.filename);
-            
+
         return 0
 
 
@@ -654,7 +662,7 @@ class ND280Process(ND280Job):
         sys.stdout.flush()
 
         self.GetLocalFile()
-            
+
         if not self.localfile:
             raise self.Error('Error obtaining file to process.')
 
@@ -677,13 +685,13 @@ class ND280Process(ND280Job):
             ## Locate the vector file
             if self.LocateVectorFile():
                 raise self.Error('Could not locate input vectors')
-     
+
         self.config_options['inputfile']      = self.localfile
         self.config_options['count_type']     = 'MEAN'
         self.config_options['bunch_duration'] = '19'
         self.config_options['mc_position']    = 'free'
 
-        # tpc constants and dead tfbs        
+        # tpc constants and dead tfbs
         if 'run1' in self.input.path:
             self.config_options['ecal_periods_to_activate'] = '1-2'
         elif 'run2' in self.input.path:
@@ -703,9 +711,9 @@ class ND280Process(ND280Job):
             # water in modes
             if 'water' in self.input.path:
                 self.config_options['p0d_water_fill'] ='1'
-   
+
                 if 'run6' in self.input.path and 'anti-' in self.input.path:
-                    self.config_options['interactions_per_spill'] ='4.75661'    
+                    self.config_options['interactions_per_spill'] ='4.75661'
                     self.config_options['pot_per_spill']          ='1.23832E+14'
 
                 elif 'run7' in self.input.path and 'anti-' in self.input.path:
@@ -733,7 +741,7 @@ class ND280Process(ND280Job):
                     self.config_options['interactions_per_spill'] ='zzz'
                     self.config_options['pot_per_spill']          ='zzz'
 
-   
+
 
         # 2010-11 geometry and beam configurations
         if '2010-11' in self.input.path:
@@ -742,7 +750,7 @@ class ND280Process(ND280Job):
             # water in modes
             if 'water' in self.input.path:
                 self.config_options['p0d_water_fill'] ='1'
-   
+
                 if 'beamc' in self.input.path or 'run3' in self.input.path or 'run4' in self.input.path:
                     if 'old-neut' in self.input.path:
                         self.config_options['interactions_per_spill'] ='11.1374'
@@ -765,7 +773,7 @@ class ND280Process(ND280Job):
             # water out modes
             elif 'air' in self.input.path:
                 self.config_options['p0d_water_fill'] ='0'
-   
+
                 if 'beamc' in self.input.path or 'run3' in self.input.path or 'run4' in self.input.path:
                     if 'old-neut' in self.input.path:
                         self.config_options['interactions_per_spill'] ='11.1076'
@@ -774,7 +782,7 @@ class ND280Process(ND280Job):
                     self.config_options['pot_per_spill']              ='9.462526e+13'
                 elif 'run6' in self.input.path and 'anti-' in self.input.path:
                     self.config_options['interactions_per_spill']     ='4.82169'
-                    self.config_options['pot_per_spill']              ='12.3832e+13' 
+                    self.config_options['pot_per_spill']              ='12.3832e+13'
                 else:
                     if 'old-neut' in self.input.path:
                         self.config_options['interactions_per_spill'] ='9.3775'
@@ -793,8 +801,8 @@ class ND280Process(ND280Job):
                 self.config_options['interactions_per_spill'] ='3.9597'
             self.config_options['pot_per_spill']          ='3.6617e+13'
             self.config_options['bunch_duration']         ='17'
-            self.config_options['comment']                ='magnet201002watera'            
- 
+            self.config_options['comment']                ='magnet201002watera'
+
         # basket beam configurations
         if 'basket' in self.input.path:
             self.config_options['mc_full_spill']          ='0'
@@ -817,15 +825,15 @@ class ND280Process(ND280Job):
         self.configfile.SetOptions(self.config_options)
         self.configfile.CreateConfig()
         self.configfile.StdOut()
-        
+
         os.chdir(self.base)
         command = self.memcommand + "runND280 -t ./ -c " + self.configfile.config_filename + "\n"
-        
+
         rtc = self.RunCommand(command)
         if rtc:
             self.PrintLogs()
             sys.exit("failed to source scripts and execute RunMC on " + self.configfile.config_filename + " with input " + self.input.filename);
-            
+
         return 0
 
     def RunCalib(self):
@@ -834,7 +842,7 @@ class ND280Process(ND280Job):
         sys.stdout.flush()
         print 'In directory  :'+os.getcwd()
         print '\n'.join(os.listdir(os.getcwd()))
-        
+
         print 'Copy from srm '+ND280GRID.GetDefaultSE()+' to local'
         print self.input.filename
         print type(self.input)
@@ -843,7 +851,7 @@ class ND280Process(ND280Job):
 
         if not self.localfile:
             raise self.Error('Error obtaining file to process.')
-        
+
         ### Raw Data Options: Dictionary of options specific to Raw data processing cfg files
         if self.quicktest=='true':
             self.config_options['comment']=self.nd280ver+'_q100'
@@ -852,18 +860,18 @@ class ND280Process(ND280Job):
 
         self.calibfn='oa_nd_ecalmod_cos_'+str(self.input.GetRunNumber())+'-'+str(self.input.GetSubRunNumber())+'_cali_'+self.nd280ver+'.root'
         self.logAfn ='oa_nd_ecalmodA_cos_'+str(self.input.GetRunNumber())+'-'+str(self.input.GetSubRunNumber())+'_logf_'+self.nd280ver+'.log'
- 
+
         command = self.memcommand + "export TFBAPPLYCALIBROOT=$PWD\nexport OACALIBROOT=$PWD\nRunOACalib.exe -t c -o " + self.calibfn + " -m " + self.localfile + " > " + self.logAfn + "\n"
 
         rtc = self.RunCommand(command)
         if rtc:
             self.PrintLogs()
             sys.exit("failed to source scripts and execute RunCalib on " + self.configfile.config_filename + " with input " + self.input.filename);
-            
-        return 0  
+
+        return 0
 
     def RunSimpleTrackFitter(self):
-        ### Run simpleTrackTitter.exe on the cali file in this directory    
+        ### Run simpleTrackTitter.exe on the cali file in this directory
         os.chdir(self.base)
 
         sys.stdout.flush()
@@ -874,7 +882,7 @@ class ND280Process(ND280Job):
         if not self.califn:
             self.PrintLogs()
             sys.exit("Can't find input cali file for simpleTrackFitter")
-           
+
         self.stftfn='oa_nd_ecalmod_cos_' +str(self.input.GetRunNumber())+'-'+str(self.input.GetSubRunNumber())+'_stft_'+self.nd280ver+'.root'
         self.logBfn='oa_nd_ecalmodB_cos_'+str(self.input.GetRunNumber())+'-'+str(self.input.GetSubRunNumber())+'_logf_'+self.nd280ver+'.log'
 
@@ -884,18 +892,18 @@ class ND280Process(ND280Job):
         if rtc:
             self.PrintLogs()
             sys.exit("failed to source scripts and execute RunSimpleTrackFitter on " + self.configfile.config_filename + " with input " + self.input.filename);
-            
+
         return 0
 
 
     def RunCollectMuonData(self):
-        ### Run simpleTrackTitter.exe on the cali file in this directory    
+        ### Run simpleTrackTitter.exe on the cali file in this directory
         os.chdir(self.base)
 
         sys.stdout.flush()
         print 'In directory  :'+os.getcwd()
         print '\n'.join(os.listdir(os.getcwd()))
-             
+
         if not os.path.exists(self.stftfn):
             self.PrintLogs()
             sys.exit("Can't find input stft file for collectMuonData")
@@ -909,18 +917,18 @@ class ND280Process(ND280Job):
         if rtc:
             self.PrintLogs()
             sys.exit("failed to source scripts and execute RunCollectMuonData on " + self.configfile.config_filename + " with input " + self.input.filename);
-        
+
         return 0
 
 
     def RunP0DRecon(self):
-        ### Run P0DRECON.exe on the cali file in this directory    
+        ### Run P0DRECON.exe on the cali file in this directory
         os.chdir(self.base)
 
         sys.stdout.flush()
         print 'In directory  :'+os.getcwd()
         print '\n'.join(os.listdir(os.getcwd()))
-        
+
         self.califn = glob.glob('oa_*cali*.root')[0]
         if not self.califn:
             self.PrintLogs()
@@ -935,17 +943,17 @@ class ND280Process(ND280Job):
         if rtc:
             self.PrintLogs()
             sys.exit("failed to source scripts and execute P0DRecon on " + self.configfile.config_filename + " with input " + self.input.filename);
-            
+
         return 0
 
     def RunP0DControlSample(self):
-        ### Run simpleTrackTitter.exe on the reco file in this directory    
+        ### Run simpleTrackTitter.exe on the reco file in this directory
         os.chdir(self.base)
 
         sys.stdout.flush()
         print 'In directory  :'+os.getcwd()
         print '\n'.join(os.listdir(os.getcwd()))
-        
+
         if not os.path.exists(self.recofn):
             self.PrintLogs()
             sys.exit("Can't find input reco file for CreateControlSample")
@@ -959,17 +967,17 @@ class ND280Process(ND280Job):
         if rtc:
             self.PrintLogs()
             sys.exit("failed to source scripts and execute CreateControlSample on " + self.configfile.config_filename + " with input " + self.input.filename);
-        
+
         return 0
 
     def RunOAAnalysis(self):
-        ### Run RunOAAnalysis.exe on the psmu file in this directory    
+        ### Run RunOAAnalysis.exe on the psmu file in this directory
         os.chdir(self.base)
 
         sys.stdout.flush()
         print 'In directory  :'+os.getcwd()
         print '\n'.join(os.listdir(os.getcwd()))
-                
+
 
         if not os.path.exists(self.psmufn):
             self.PrintLogs()
@@ -984,7 +992,7 @@ class ND280Process(ND280Job):
         if rtc:
             self.PrintLogs()
             sys.exit("failed to source scripts and execute RunOAAnalysis on " + self.configfile.config_filename + " with input " + self.input.filename);
-        
+
         return 0
 
     def RunNEUTSetup(self, generator, geometry, vertex, beam, POT):
@@ -1003,7 +1011,7 @@ class ND280Process(ND280Job):
         # subrun = ND280GRID.GetSubRunFromFlukaFileName(self.input.filename)
         subrun =  0  # this is an int - arithmetic and stringification in lines below
         run    = '0' # default to 0
-        
+
         ## Was the run code specified? - It should be in the format ZABCDEEE - test that length is 8
         # Z   = 9 -> Neutrino MC, 8 -> Anti-neutrino MC
         # A   = Generator (0: NEUT, 1: GENIE, 2: old NEUT)
@@ -1011,14 +1019,14 @@ class ND280Process(ND280Job):
         # C   = 0: P0D air, 1: P0D water
         # D   = Volume / Sample type (0: Magnet, 1: Basket (beam), 2: nue, 3: NC1pi0, 4: CC1pi0, 5: NC1pi+, 6: CC1pi+, 7: tpcgas)
         # EEE = 3 digit run number
-        if 'runCode' in self.custom_list_dict: 
+        if 'runCode' in self.custom_list_dict:
             if len(self.custom_list_dict['runCode']) == 8:
                 run = self.custom_list_dict['runCode']
             else:
                 print 'Length of runCode != 8, defaulting to 0. runCode = %s' % (self.custom_list_dict['runCode'])
 
         ## Offset the subrun no. ?
-        if 'subrunOffset' in self.custom_list_dict: 
+        if 'subrunOffset' in self.custom_list_dict:
             subrun += int(self.custom_list_dict['subrunOffset'])
         subrun = str(subrun)
 
@@ -1043,7 +1051,7 @@ class ND280Process(ND280Job):
 
         # [neutrino]
         # nutype - must be one of NUE, NUEBAR, NUMU, NUMUBAR or BEAM
-        if beam.startswith('beam') or beam.startswith('run'):  # beama, beamb... run1, run2 etc 
+        if beam.startswith('beam') or beam.startswith('run'):  # beama, beamb... run1, run2 etc
             nutype = 'beam'
         elif 'nue' in beam:
             if 'anti' in generator : nutype = 'nuebar'
@@ -1063,7 +1071,7 @@ class ND280Process(ND280Job):
         self.configfile.SetOptions(self.config_options)
         self.configfile.CreateConfig()
         self.configfile.StdOut()
-        
+
         ## make sure to run NEUT environmental setup script before
         ## nd280Control
         os.chdir(self.base)
@@ -1073,7 +1081,7 @@ class ND280Process(ND280Job):
         if rtc:
             self.PrintLogs()
             sys.exit("failed to source scripts and execute RunNEUTSetup on " + self.configfile.config_filename + " with input " + self.input.filename);
-            
+
         return 0
 
     def RunCreateFlatTree(self):
@@ -1094,7 +1102,7 @@ class ND280Process(ND280Job):
 
         if not self.localfile:
             raise self.Error('Error obtaining file to process.')
-        
+
         print 'Using input   :'+self.localfile
 
         ## make sure to run the nd280Highland2 setup script
@@ -1120,12 +1128,12 @@ class ND280Process(ND280Job):
             raise self.Error('Error obtaining file to process %s' % (self.input.filename))
         print 'Using input   :'+self.localfile
 
-        ## Build up the list of filenames to hadd 
-        inputString = ''    
+        ## Build up the list of filenames to hadd
+        inputString = ''
 
         ## list of ND280Files
         inputFiles = []
-        
+
         ## Read the file list
         filenames = [ f.strip() for f in open(self.localfile).readlines() ]
         for filename in filenames:
@@ -1135,11 +1143,11 @@ class ND280Process(ND280Job):
             localname    = f.CopyLocal(self.base,ND280GRID.GetDefaultSE())  # copy the file to the working directory ready for hadd-ing
             inputString += localname + ' '                                  # add the local file name to the hadd input string
             inputFiles.append(f)                                            # append this file to the list of inputFiles
-            
+
         ## The name of the hadd-ed file... derives from the input file paths
         # the prefix is simply the logical directory path with '/' substituted with '.'
         stitchName = inputFiles[0].alias.rstrip(inputFiles[0].filename).lstrip('lfn:').lstrip(os.getenv('LFC_HOME')).replace('/','.')
-        
+
         # is this a processed file?
         if inputFiles[0].GetRunNumber():
             stitchName += inputFiles[0] .GetRunNumber() + '-' + inputFiles[0] .GetSubRunNumber() + '-' # add the run-subrun of the first file
@@ -1162,7 +1170,7 @@ class ND280Process(ND280Job):
         f.Register(lfnDir,ND280GRID.GetDefaultSE())
 
         return 0
-    
+
     def RunCreateMiniTree(self):
         ## Run RunCreateMiniTree.exe on an oaAnalysis file.
         sys.stdout.flush()
@@ -1181,7 +1189,7 @@ class ND280Process(ND280Job):
 
         if not self.localfile:
             raise self.Error('Error obtaining file to process.')
-        
+
         print 'Using input   :'+self.localfile
 
         ## make sure to run the nd280Highland2 setup script
@@ -1193,7 +1201,7 @@ class ND280Process(ND280Job):
             sys.exit("failed to source scripts and execute RunCreateMiniTree on " + self.localfile);
 
         return 0
-        
+
     ## Print out the contents of any log files in the base directory
     def PrintLogs(self):
         sys.stdout.flush()
@@ -1201,6 +1209,6 @@ class ND280Process(ND280Job):
         for l in glob.glob('*.log'):
             print 'Printing Log File : %s' % (l)
             print ''.join(open(l,'r').readlines())
-        
-                           
-        
+
+
+

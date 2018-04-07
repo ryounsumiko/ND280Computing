@@ -2,3 +2,7 @@
 ./*pyc
 ./*/*pyo
 ./*/*pyc
+*.swp
+*.swo
+./*/*.swp
+./*/*.swo

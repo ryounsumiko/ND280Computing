@@ -100,14 +100,15 @@ def main(argv):
     print 'Job object'
     # max file size
     fmem = 20*1024*1024  # 20GiB
-    print 'Max file size = ' + str(fmem / (1024.0 * 1024.0)) + 'GiB'
     # max memory
     vmem = 4*1024*1024  # 4GB
-    print 'Max memory = ' + str(vmem / (1024.0 * 1024.0)) + 'GiB'
     # job time limit
     tlim = 24*3600  # 24h
-    print 'Max walltime = ' + str(tlim / 3600.) + 'hr'
     dbtime = '2038-01-01'
+
+    print 'Max file size = ' + str(fmem / (1024.0 * 1024.0)) + 'GiB'
+    print 'Max memory = ' + str(vmem / (1024.0 * 1024.0)) + 'GiB'
+    print 'Max walltime = ' + str(tlim / 3600.) + 'hr'
     print 'DB time = ' + dbtime
     print eightyPounds
 

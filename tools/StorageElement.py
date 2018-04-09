@@ -1,5 +1,8 @@
+#!/usr/bin/env python2.7
+
 """Storage Elements (SE) info in one convenient location"""
 import os
+from os import system
 from os.path import join
 
 import ND280Grid
@@ -154,13 +157,13 @@ def GetTopLevelDir(storageElement):
     testFileName = 'lcgCrTestfile.'+str(os.getpid())
     command = "dd if=/dev/zero of="+testFileName+" bs=1048576 count=1"
     print command
-    os.system(command)
+    system(command)
 
     # Make sure test file is not already registered on LFC
     command = join("lcg-del --vo t2k.org \
 -a lfn:/grid/t2k.org/test", testFileName)
     command += " </dev/null >/dev/null 2>&1"
-    os.system(command)
+    system(command)
 
     try:
         # Register test file on storage element
@@ -199,8 +202,8 @@ def GetTopLevelDir(storageElement):
             runLCG(command, is_pexpect=False)
 
     # Clean up, don't worry about errors
-    os.system("rm -f " + testFileName)
-    os.system("lcg-del --vo t2k.org -a lfn:/grid/t2k.org/test/" + testFileName)
+    system("rm -f " + testFileName)
+    system("lcg-del --vo t2k.org -a lfn:/grid/t2k.org/test/" + testFileName)
 
     # Last ditch, use se_roots but truncate nd280/ subdirectory
     if 'error' in top_level_dir or 'srm://' not in top_level_dir:

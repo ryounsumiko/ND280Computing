@@ -1,3 +1,5 @@
+#!/usr/bin/env python2.7
+
 """
 Handy functions to make using the GRID a little more bearable.
 """
@@ -6,13 +8,15 @@ from datetime import datetime
 from datetime import date
 from hashlib import sha1
 import os
+from os import system, getenv, getpid, getcwd
 from os.path import join
 import pexpect
+import re
 from subprocess import Popen, PIPE
 import sys
-import re
 import time
 import traceback
+
 import StorageElement as SE
 
 # t2k.org VO name
@@ -64,9 +68,14 @@ class status_flags(object):
 
 class status_wait_times(object):
     """a namespace for common wait times"""
-    kProxyExpirationThreshold = 120  # seconds
-    kProxyNextCheck = 360  # seconds
-    kTimeout = 300  # seconds
+    kSecond = 1
+    kMinute = 60 * kSecond
+    kHour = 60 * kMinute
+    kDay = 24 * kHour
+    kProxyExpirationThreshold = 2 * kMinute
+    kProxyNextCheck = 6 * kMinute
+    kProcessWait = 1 * kMinute
+    kTimeout = 5 * kMinute
 
 
 def GetSEChannels():
@@ -94,7 +103,7 @@ def processWait(processList=[], limit=0):
 
         print '%3d active processes ... \
 sleeping until there are < %d ...' % (nActive, limit)
-        time.sleep(60)
+        time.sleep(status_wait_times.kProcessWait)
 
     return
 
@@ -114,16 +123,16 @@ def GetTopLevelDir(storageElement):
     top_level_dir = str()
 
     # Use a local test file
-    testFileName = 'lcgCrTestfile.'+str(os.getpid())
+    testFileName = 'lcgCrTestfile.'+str(getpid())
     command = "dd if=/dev/zero of="+testFileName+" bs=1048576 count=1"
     print command
-    os.system(command)
+    system(command)
 
     # Make sure test file is not already registered on LFC
     command = join("lcg-del --vo t2k.org \
 -a lfn:/grid/t2k.org/test", testFileName)
     command += " </dev/null >/dev/null 2>&1"
-    os.system(command)
+    system(command)
 
     try:
         # Register test file on storage element
@@ -162,8 +171,8 @@ def GetTopLevelDir(storageElement):
             runLCG(command, is_pexpect=False)
 
     # Clean up, don't worry about errors
-    os.system("rm -f " + testFileName)
-    os.system("lcg-del --vo t2k.org -a lfn:/grid/t2k.org/test/" + testFileName)
+    system("rm -f " + testFileName)
+    system("lcg-del --vo t2k.org -a lfn:/grid/t2k.org/test/" + testFileName)
 
     # Last ditch, use se_roots but truncate nd280/ subdirectory
     if 'error' in top_level_dir or 'srm://' not in top_level_dir:
@@ -234,7 +243,7 @@ def GetFTS2ActiveTransferList(channel=''):
         transfers = []
         statuses = []
 
-        command = "glite-transfer-list -s " + os.getenv("FTS_SERVICE")
+        command = "glite-transfer-list -s " + getenv("FTS_SERVICE")
         if channel:
             command += ' -c '+channel
 
@@ -273,7 +282,7 @@ def GetActiveTransferList(source='', dest=''):
         statuses = []
 
         command = 'glite-transfer-list -o t2k.org \
--s %s --source %s' % (os.getenv("FTS_SERVICE"), source)
+-s %s --source %s' % (getenv("FTS_SERVICE"), source)
         if dest:
             command += ' --dest ' + dest
 
@@ -309,7 +318,7 @@ def GetTransferStatus(transfer='', SOURCE='', DEST=''):
 
     try:
         command = "glite-transfer-status -s " +\
-                   os.getenv("FTS_SERVICE")+" -l " + transfer
+                   getenv("FTS_SERVICE")+" -l " + transfer
 
         lines, errors = runLCG(command, is_pexpect=False)
 
@@ -382,10 +391,10 @@ def runLCG(in_command, in_timeout=status_wait_times.kTimeout, is_pexpect=True):
         tries = 0
 
         # Temporary log file to contain stdout/stderr redirection
-        temp_filename = '.pexpect.'+str(os.getpid())
+        temp_filename = '.pexpect.'+str(getpid())
         # Write temp file to scratch if possible
-        if os.getenv("ND280SCRATCH"):
-            temp_filename = os.getenv("ND280SCRATCH")+'/'+temp_filename
+        if getenv("ND280SCRATCH"):
+            temp_filename = getenv("ND280SCRATCH")+'/'+temp_filename
 
         # Regex for identifiying errors
         # (can't easily pick up the stderr pipe separately)
@@ -524,7 +533,7 @@ def getGUID(filename):
 
 def getMyProxyPwd():
     """ Get MyProxy password from environment if defined """
-    pwd_file = os.getenv("MYPROXY_PWD")
+    pwd_file = getenv("MYPROXY_PWD")
 
     if pwd_file:
         command = 'cat ' + pwd_file
@@ -541,9 +550,9 @@ def runFTS(original_filename, copy_filename):
     """ Send a single file to the RAL File Transfer Service """
 
     # Use the FTS service 23-11-10
-    command = 'glite-transfer-submit -K -o -s ' + os.getenv("FTS_SERVICE")
+    command = 'glite-transfer-submit -K -o -s ' + getenv("FTS_SERVICE")
     # comment out for legacy mode
-    command += ' -m '+os.getenv("MYPROXY_SERVER")
+    command += ' -m '+getenv("MYPROXY_SERVER")
     # if getMyProxyPwd():
     #    command+= ' -p '+getMyProxyPwd()
     # Implement space token
@@ -554,9 +563,9 @@ def runFTS(original_filename, copy_filename):
     lines, errors = runLCG(command)
 
     # Add this transfer to the transfer log
-    transfer_dir = os.getenv("ND280TRANSFERS")
+    transfer_dir = getenv("ND280TRANSFERS")
     if not transfer_dir:
-        transfer_dir = os.getcwd()
+        transfer_dir = getcwd()
     datestring = date.today().isoformat().replace('-', '')
     transfer_log = open(transfer_dir + '/transfers.' +
                         datestring + '.log', "a")
@@ -588,9 +597,9 @@ def runFTSMulti(srm, original_filename, copy_filename,
     isForcedCopy = 0
 
     # Environment
-    transfer_dir = os.getenv("ND280TRANSFERS")
+    transfer_dir = getenv("ND280TRANSFERS")
     if not transfer_dir:
-        transfer_dir = os.getcwd()
+        transfer_dir = getcwd()
     print 'Transfer directory: '+transfer_dir
     datestring = date.today().isoformat().replace('-', '')
     print 'Datestamp:'+datestring
@@ -705,13 +714,13 @@ def runFTSMulti(srm, original_filename, copy_filename,
                         break
 
                     # If not, sleep
-                    time.sleep(60)
+                    time.sleep(status_wait_times.kProcessWait)
 
             # Now, submit the transfer
             command = 'glite-transfer-submit'
-            command += ' --verbose -v -K -o -s ' + os.getenv("FTS_SERVICE")
+            command += ' --verbose -v -K -o -s ' + getenv("FTS_SERVICE")
             # comment out for legacy mode
-            command += ' -m '+os.getenv("MYPROXY_SERVER")
+            command += ' -m '+getenv("MYPROXY_SERVER")
             # Implement space token
             if se_spacetokens[srm_b]:
                 command += ' -t T2KORGDISK'
@@ -725,7 +734,7 @@ def runFTSMulti(srm, original_filename, copy_filename,
                 priority = str(5)
                 if 'kek.jp' in srm_a:
                     command = 'glite-transfer-setpriority'
-                    command += ' -s ' + os.getenv("FTS_SERVICE")
+                    command += ' -s ' + getenv("FTS_SERVICE")
                     command += transfer_id + ' ' + priority
                     lines, errors = runLCG(command)
 
@@ -889,9 +898,9 @@ def DIRSURL(lfn, srm):
 
 def GetT2KSoftDir():
     """ Get ND280 software directory"""
-    t2ksoftdir = os.getenv("VO_T2K_ORG_SW_DIR")
+    t2ksoftdir = getenv("VO_T2K_ORG_SW_DIR")
     if not t2ksoftdir:
-        t2ksoftdir = os.getenv("VO_T2K_SW_DIR")
+        t2ksoftdir = getenv("VO_T2K_SW_DIR")
     if not t2ksoftdir:
         return ""
     return t2ksoftdir
@@ -901,9 +910,9 @@ def GetDefaultSE():
     """ Get the default SE to store output on, defaults to RAL.
     Also checks if the default SE is in the list of se_roots """
 
-    default_se = os.getenv("VO_T2K_ORG_DEFAULT_SE")
+    default_se = getenv("VO_T2K_ORG_DEFAULT_SE")
     if not default_se or default_se not in se_roots:
-        default_se = os.getenv("VO_T2K_DEFAULT_SE")
+        default_se = getenv("VO_T2K_DEFAULT_SE")
     if not default_se or default_se not in se_roots:
         return "srm-t2k.gridpp.rl.ac.uk"
     return default_se
@@ -926,7 +935,9 @@ def GetDiracProxyTimeLeft():
                 continue
             time_string = a_line.split('timeleft')[1]
             dummy, hr, minutes, seconds = time_string.split(':')
-            timeleft = int(hr)*3600 + int(minutes) * 60 + seconds
+            timeleft = int(hr) * status_wait_times.kHour
+            timeleft += int(minutes) * status_wait_times.kMinute
+            timeleft += int(seconds) * status_wait_times.kSecond
             break
 
     return timeleft, errors
@@ -945,7 +956,7 @@ def CheckDiracProxy():
 
         # Wait a few minutes for renewal
         print 'Waiting a few minutes for proxy renewal'
-        time.sleep(360)
+        time.sleep(status_wait_times.kProxyNextCheck)
 
         # Try again
         timeleft, errors = GetDiracProxyTimeLeft()
@@ -982,7 +993,7 @@ def CheckVomsProxy():
 
         # Wait a few minutes for renewal
         print 'Waiting a few minutes for proxy renewal'
-        time.sleep(360)
+        time.sleep(status_wait_times.kProxyNextCheck)
 
         # Try again
         lines, errors = runLCG(command)
@@ -1011,27 +1022,27 @@ def SetGridEnv():
     """
     print 'SetGridEnv()'
     # LFC environment variables
-    if os.getenv("LFC_HOST") is not "lfc.gridpp.rl.ac.uk":
+    if getenv("LFC_HOST") is not "lfc.gridpp.rl.ac.uk":
         os.environ["LFC_HOST"] = "lfc.gridpp.rl.ac.uk"
 
     # Explicitly specify LFC catalogue instead of RLS
-    if os.getenv("LCG_CATALOG_TYPE") is not "lfc":
+    if getenv("LCG_CATALOG_TYPE") is not "lfc":
         os.environ["LCG_CATALOG_TYPE"] = "lfc"
 
     # Set LFC Home
-    if os.getenv("LFC_HOME") is not "/grid/t2k.org/nd280":
+    if getenv("LFC_HOME") is not "/grid/t2k.org/nd280":
         os.environ["LFC_HOME"] = "/grid/t2k.org/nd280"
 
     # Use GRIDFTP 2
-    if os.getenv("GLOBUS_FTP_CLIENT_GRIDFTP2") is not 'true':
+    if getenv("GLOBUS_FTP_CLIENT_GRIDFTP2") is not 'true':
         os.environ["GLOBUS_FTP_CLIENT_GRIDFTP2"] = 'true'
 
     # BDII
-    if os.getenv("LCG_GFAL_INFOSYS") is not 'lcg-bdii.gridpp.ac.uk:2170':
+    if getenv("LCG_GFAL_INFOSYS") is not 'lcg-bdii.gridpp.ac.uk:2170':
         os.environ["LCG_GFAL_INFOSYS"] = 'lcg-bdii.gridpp.ac.uk:2170'
 
     # MYPROXY SERVER
-    if not os.getenv("MYPROXY_SERVER"):
+    if not getenv("MYPROXY_SERVER"):
         os.environ["MYPROXY_SERVER"] = 'myproxy.gridpp.rl.ac.uk'
 
     return 0
@@ -1039,7 +1050,7 @@ def SetGridEnv():
 
 # Set the env when this module is imported, if it isn't set
 for var in ['LFC_HOST', 'LCG_CATALOG_TYPE', 'LFC_HOME']:
-    if not os.getenv(var):
+    if not getenv(var):
         SetGridEnv()
         break
 
@@ -1100,7 +1111,7 @@ t2kgscND280.DAQ_FILE_ARCHIVE where Archive_Date >= curdate() \
 
     return ['/'.join(l.split()).strip().
             replace('/gpfs/fs03/t2k/nd280/barr/archive', 'lfn:' +
-            os.getenv('LFC_HOME') + '/raw') for l in lines]
+            getenv('LFC_HOME') + '/raw') for l in lines]
 
 
 def LocalCopyLFNList(fileList=[], localRoot='',
@@ -1118,7 +1129,7 @@ def LocalCopyLFNList(fileList=[], localRoot='',
         lfcDir = os.path.dirname(fileName)
 
         # define path to local destination which preserves LFC structure
-        localDir = lfcDir.replace('lfn:' + os.getenv('LFC_HOME'), localRoot)
+        localDir = lfcDir.replace('lfn:' + getenv('LFC_HOME'), localRoot)
 
         # create destination directory if necessary
         if not os.path.exists(localDir):
@@ -1161,7 +1172,7 @@ def LogFileConsistencyCheck(logFileLFN=''):
     # does a local copy exist?
     if not os.path.exists(logFileName):
         f = ND280File(logFileLFN)
-        f.CopyLocal(os.getcwd())
+        f.CopyLocal(getcwd())
 
     # read the lines
     lines = [l.strip() for l in open(logFileName, 'r').readlines()]
@@ -1319,7 +1330,7 @@ class ND280File(object):
             else:
                 # This file is not registered on the GRID, is it local?
                 command = 'ls ' + fn
-                rtc = os.system(command)
+                rtc = system(command)
                 if rtc:
                     raise self.Error('This file is not registered on the LFC \
 and does not exist on the local system ' + fn)
@@ -1349,7 +1360,7 @@ and does not exist on the local system ' + fn)
             command = 'lcg-sd ' + self.turl[0] + ' '
             command += self.turl[2].replace('\n', '') + ' 0'
             print command
-            rtc = os.system(command)
+            rtc = system(command)
             if rtc:
                 raise self.Error('Could not set done file turl '
                                  + self.turl[0] + ' located at '
@@ -1528,9 +1539,9 @@ comment.')
         srmname = ''
         site_name = ''
 
-        site_name = os.getenv("SITE_NAME")
+        site_name = getenv("SITE_NAME")
         # if not site_name:
-        #     site_name=os.getenv("HOSTNAME")
+        #     site_name=getenv("HOSTNAME")
         if not site_name:
             raise self.Error('Cannot get the env variable SITE_NAME:\
 On a GRID node? No=Don\'t Worry, yes=WTF')
@@ -1656,8 +1667,9 @@ On a GRID node? No=Don\'t Worry, yes=WTF')
             lines, errors = runLCG(command, in_timeout=600)
             if errors:
                 print '\n'.join(errors)
-                raise self.Error('Could not replicate the file \
-' + self.alias + ' on the SRM ' + srm + '\n', errors)
+                raise self.Error('Could not replicate the file '
+                                 + self.alias + ' on the SRM '
+                                 + srm + '\n', errors)
             else:
                 print '\n'.join(lines)
                 return copy_filename
@@ -1680,8 +1692,10 @@ On a GRID node? No=Don\'t Worry, yes=WTF')
 Could not determine staging of ' + original_filename)
             else:
                 if 'ONLINE' not in lines[0].split()[5]:
-                    lines, errors = runLCG('\
-lcg-bringonline ' + original_filename, in_timeout=3600, is_pexpect=False)
+                    lines, errors = runLCG('lcg-bringonline '
+                                           + original_filename,
+                                           in_timeout=status_wait_times.kHour,
+                                           is_pexpect=False)
                     if errors:
                         print '\n'.join(errors)
                         raise self.Error('\
@@ -1698,7 +1712,8 @@ lcg-bringonline of ' + original_filename + ' did not bring file online')
 
         command = 'lcg-cp ' + original_filename + ' ' + copy_filename
         # timeouts added by hand when not using pexpect
-        lines, errors = runLCG(command, in_timeout=3600, is_pexpect=False)
+        lines, errors = runLCG(command, status_wait_times.kHour,
+                               is_pexpect=False)
         if errors:
             raise self.Error('Could not copy ' + original_filename +
                              ' to the local directory ' + copy_filename +
@@ -1726,7 +1741,8 @@ nd280Control/fileNaming.html
         return copy_filename
 
     # Methods for gridlocally resident files
-    def Register(self, lfn='', srm='srm-t2k.gridpp.rl.ac.uk', timeout=300):
+    def Register(self, lfn='', srm='srm-t2k.gridpp.rl.ac.uk',
+                 timeout=status_wait_times.kTimeout):
         """
         For local files:
              first copy to grid.
@@ -2002,7 +2018,7 @@ create ND280File with name ' + self.dir + '/' + justFN
         # If sync_pattern==GOODFILES, only sync files in GoodFiles.list,
         # don't bother looking for files not in current directory!
         if sync_pattern is 'GOODFILES':
-            good_list_name = os.getenv("ND280COMPUTINGROOT") + \
+            good_list_name = getenv("ND280COMPUTINGROOT") + \
                 '/data_scripts/GoodRuns.list'
             print 'Opening ' + good_list_name
             good_list = open(good_list_name, 'r')
@@ -2212,7 +2228,7 @@ raw data file, please specify the trigger type via the options[\'trigger\']')
             jdlfile.write('Executable = \"' + self.executable + '\";\n')
             jdlfile.write('Arguments = \"' + self.arguments + '\";\n')
 
-            comp_path = os.getenv('ND280COMPUTINGROOT')
+            comp_path = getenv('ND280COMPUTINGROOT')
             if not comp_path:
                 raise self.Error('Could not get\
 the ND280COMPUTINGROOT environment variable, have you executed the setup.sh?')
@@ -2238,7 +2254,7 @@ the ND280COMPUTINGROOT environment variable, have you executed the setup.sh?')
 
             # Data Requirements for LFC InputData
             jdlfile.write('DataRequirements = {\n[\nDataCatalogType = "DLI";\
-\nDataCatalog = "'+os.getenv('LFC_HOST')+':8085/";\n')
+\nDataCatalog = "'+getenv('LFC_HOST')+':8085/";\n')
             if self.input.alias and 'cvmfs' not in self.input.path:
                 # Should use lcg-lr to determine where data is located.
                 jdlfile.write('InputData = {"' + self.input.alias +
@@ -2272,9 +2288,9 @@ the ND280COMPUTINGROOT environment variable, have you executed the setup.sh?')
             jdlfile.write(';\n')
 
             # MyProxy server requirements
-            if os.getenv('MYPROXY_SERVER'):
+            if getenv('MYPROXY_SERVER'):
                 jdlfile.write('MyProxyServer = \"' +
-                              os.getenv('MYPROXY_SERVER')+'\";\n')
+                              getenv('MYPROXY_SERVER')+'\";\n')
             else:
                 print 'Warning MyProxyServer attribute undefined!'
 

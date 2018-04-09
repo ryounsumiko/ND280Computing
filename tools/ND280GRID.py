@@ -13,7 +13,7 @@ import sys
 import re
 import time
 import traceback
-import StorageElement
+import StorageElement as SE
 
 # t2k.org VO name
 VO = 't2k.org'
@@ -37,23 +37,16 @@ fts3_failed_list = ['Canceled', 'Failed']
 
 # Master dictionary containing storage elements (SE) bindings
 # FORMAT se : [root, fts2Channel, hasSpaceToken]
-se_master = StorageElement.SE_MASTER
+se_master = SE.SE_MASTER
 
 # SRM root directories
-se_roots = dict()
+se_roots = SE.SE_ROOTS
 
 # FTS channel name associated with each SRM
-se_channels = dict()
+se_channels = SE.SE_CHANNELS
 
 # Sites enabled with T2KORGDISK space token
-se_spacetokens = dict()
-
-# Fill from master
-for se, [root, channel, token] in se_master.iteritems():
-    se_roots[se] = root
-    se_channels[se] = channel
-    se_spacetokens[se] = token
-
+se_spacetokens = SE.SE_SPACETOKENS
 
 # Number of files put in an FTS transfer limit to 200
 # since monitoring pages only display 200 files
@@ -78,12 +71,12 @@ class status_wait_times(object):
 
 def GetSEChannels():
     """simple get'er method for channel names associated with each SRM"""
-    return se_channels
+    return SE.GetSEChannels()
 
 
 def GetSERoots():
     """simple get'er method for SRM root directories"""
-    return se_roots
+    return SE.GetSERoots()
 
 
 def countActiveProcesses(processList=[]):
@@ -109,11 +102,7 @@ sleeping until there are < %d ...' % (nActive, limit)
 def GetLiveSERoots():
     """ Compile the SE root-directory dictionary live from
     lcg-infosites rather than hard coding """
-    print 'Getting live SE root directories'
-    se_roots_live = dict()
-    for se in GetListOfSEs():
-        se_roots_live[se] = GetTopLevelDir(se)
-    return se_roots_live
+    return SE.GetLiveSERoots()
 
 
 def GetTopLevelDir(storageElement):
@@ -212,31 +201,7 @@ def GetListPopenCommand(command):
 
 def GetListOfSEs():
     """ Get list of Storage Elements """
-    print 'GetListOfSEs'
-
-    command = "lcg-infosites --vo %s se" % VO
-    lines, errors = GetListPopenCommand(command)
-    if len(lines) > 2:
-        # skip first 2 lines
-        lines = lines[2:]
-        seList = list()
-        for line in lines:
-            word = line.split()
-            seName = word[3]
-            # Ignore following (for now)
-            if 'manchester' in seName:
-                continue
-            if 'heplnx204' in seName:
-                continue
-            if 'se04.esc.qmul.ac.uk' in seName:
-                continue
-            # Append se to list
-            seList.append(seName)
-        # return unique elements only
-        return list(set(seList))
-    else:
-        print 'Could not get list of SEs'
-    return list()
+    return SE.GetListOfSEs()
 
 
 def GetListOfCEs():
@@ -265,9 +230,7 @@ def GetFTS2ActiveTransferList(channel=''):
     """ List active FTS transfers:"""
 
     Fail = [], []
-
     try:
-
         transfers = []
         statuses = []
 
@@ -317,7 +280,7 @@ def GetActiveTransferList(source='', dest=''):
         lines, errors = runLCG(command)
 
         if errors:
-            print "Couldn't access "+channel
+            # print "Couldn't access " + channel
             return Fail
 
         transfers = [rmNL(line.split('\t')[0]) for line in lines]
@@ -656,7 +619,7 @@ def runFTSMulti(srm, original_filename, copy_filename,
             listname += '.' + str(ftsInt)
         listname += '.txt'
 
-        print 'Accessing channel:'+listname
+        print 'Accessing channel:' + listname
 
         # Add this transfer file to the list if not present
         if listname not in TRANSFER_FILE_LIST:

@@ -39,13 +39,13 @@ class ND280Software:
 
         print 'self.base: ' + self.base
         print 'self.instDir: ' + self.instDir
-        
+
         #### Create cvsrsh file if not present
         self.cvsrsh_filename=self.base + '/cvsrsh.sh'
         print 'cvsrsh: ' + self.cvsrsh_filename
         if not os.path.isfile(self.cvsrsh_filename):
             self.MakeCVSRSH()
-        
+
         #### Set important environment variables
         os.environ['CVSROOT']=':ext:anoncvs@repo.nd280.org:/home/trt2kmgr/ND280Repository'
         os.environ['CVS_RSH']= self.cvsrsh_filename
@@ -70,7 +70,7 @@ class ND280Software:
 
     nd280ver=''
     t2ksoftdir=''
-    instDir='' 
+    instDir=''
     base=''
     install={}
 
@@ -94,7 +94,7 @@ class ND280Software:
 
     ########################################################################################################################
     def RemoveInstall(self):
-        
+
         """ Completely remove an installation of the ND280 Software """
         print 'Removing install... '
 
@@ -107,8 +107,8 @@ class ND280Software:
                 print 'Remove done'
                 #raise self.Error( "Failed to rm -rf " + self.instDir)
             ### Code here to remove software tags if running on the grid
-            
-        
+
+
     ########################################################################################################################
     def InstallCMT(self):
 
@@ -126,9 +126,9 @@ class ND280Software:
                 raise self.Error("Could not make installation directory: " + self.instDir)
 
         os.chdir(self.instDir) ## cd into the installation directory as all will be done from here
-        
+
         print 'In dir: ' + os.getcwd()
-        
+
         if not os.path.isfile(self.cvsrsh_filename):
             raise self.Error('Can\'t see ' + self.cvsrsh_filename)
 
@@ -139,7 +139,7 @@ class ND280Software:
             print 'Nothing to remove'
         else:
             print 'Removed existing CMT'
-            
+
         command = "cvs checkout CMT"
         print command
         rtc = os.system(command)
@@ -147,7 +147,7 @@ class ND280Software:
             raise self.Error( "Failed to checkout CMT" )
 
         print 'Dir contains: ' + str(os.listdir('.'))
-   
+
         # Now Compile CMT
         print 'Compiling CMT: '
         command = "cd CMT\n./install_cmt"
@@ -158,7 +158,7 @@ class ND280Software:
             print 'Done'
 
         self.install['CMT']=1
-        
+
         return 0
 
     ########################################################################################################################
@@ -175,7 +175,7 @@ class ND280Software:
         rtc = os.system(command)
         return rtc
 
-    ########################################################################################################################    
+    ########################################################################################################################
     def GetND280(self):
         """ Obtain the nd280 software from CVS """
         if self.install['ND280_dl']:
@@ -183,7 +183,7 @@ class ND280Software:
             return 0
 
         # Get Variables
-        if not self.install['CMT'] and not os.getenv('CMTPATH'): 
+        if not self.install['CMT'] and not os.getenv('CMTPATH'):
             raise self.Error('Please make sure CMT is installed first')
 
         # Check the install directory.
@@ -198,14 +198,14 @@ class ND280Software:
 
         cmtpath = os.getenv('CMTPATH')
 
-        # Check the install directory.   
+        # Check the install directory.
         if not os.path.isdir(self.instDir):
             print "echo no installation directory " + self.instDir
             raise self.Error("No Installation directory")
 
         command="env"
         os.system(command)
-        
+
         # Pull the code from CVS
         command = 'cmt checkout -R -r '+self.nd280ver+' nd280'
         rtc = self.RunND280Command(command)
@@ -236,7 +236,7 @@ class ND280Software:
         if rtc:
             raise self.Error( "Failed to make clean nd280Soft" )
         return 0
-    
+
     ########################################################################################################################
     def MakeND280(self):
         """ Make the nd280 software and write setup scripts. """
@@ -246,7 +246,7 @@ class ND280Software:
 ##             return 0
 
         print 'Making ND280'
-        
+
         if not self.install['ND280_dl']:
             raise self.Error('Please make sure ND280 is downloaded first')
 
@@ -276,7 +276,7 @@ class ND280Software:
             batchFH.write("#!/bin/sh\n")
             setupScr =  cmtDir+"/setup.sh"
             batchFH.write("if [ -f "+setupScr+" ];\nthen\nsource "+setupScr+"\nfi\n")
-            batchFH.write("export CMTPATH="+cmtpath+"\n") 
+            batchFH.write("export CMTPATH="+cmtpath+"\n")
             batchFH.write("echo Setup ND280 software version "+self.nd280ver+"\n")
             setupScr =  self.instDir+"/nd280/"+self.nd280ver+"/cmt/setup.sh"
             batchFH.write("if [ -f "+setupScr+" ];\nthen\nsource "+setupScr+"\nfi\n")
@@ -290,7 +290,7 @@ class ND280Software:
             batchFH.write("#!/bin/csh\n")
             setupScr =  cmtDir+"/setup.csh"
             batchFH.write("if ( -f "+setupScr+" )then\nsource "+setupScr+"\nendif\n")
-            batchFH.write("setenv CMTPATH "+cmtpath+"\n") 
+            batchFH.write("setenv CMTPATH "+cmtpath+"\n")
             batchFH.write("echo Setup ND280 software version "+self.nd280ver+"\n")
             setupScr =  self.instDir+"/nd280/"+self.nd280ver+"/cmt/setup.csh"
             batchFH.write("if ( -f "+setupScr+" )then\nsource "+setupScr+"\nendif\n")
@@ -331,7 +331,7 @@ class ND280Software:
             raise self.Error('Please make sure CMT is installed first')
 
         os.chdir(self.instDir) ## cd into the installation directory as all will be done from here
-        
+
         rootver = self.GetPackageVersion('ROOT')
         if not rootver:
             raise self.Error("Could not get the ROOT version")
@@ -355,20 +355,20 @@ class ND280Software:
             os.chmod(filename, 0777)
             test_cvsrsh="cd " + self.base + '\necho ===== list1 =====\nls -lh'
             os.system(test_cvsrsh)
-            
+
         except:
             raise self.Error("Could not write " + self.base + '/cvsrsh.sh')
         return filename
 
     ########################################################################################################################
     def ReplaceND280Package(self,package,version=''):
-        
+
         """ Replaces an ND280 package: changes the version in the global cmt requirements, removes the old version and re-makes the software """
 
         print 'cd ' + str(self.instDir)
         os.chdir(self.instDir) ## cd into the installation directory as all will be done from here
 
-        ## Check that the nd280/v#r#p#/ directory is there 
+        ## Check that the nd280/v#r#p#/ directory is there
         nd280Dir=self.instDir + '/nd280/' + self.nd280ver
         print 'nd280Dir: ' + str(nd280Dir)
         if not os.path.isdir(nd280Dir):
@@ -383,7 +383,7 @@ class ND280Software:
             self.Error('Could not get current version of ' + package)
 
         print 'Current version: ' + str(currVer)
-        
+
         ## Download the replacement version
         self.GetPackage(package,version)
 
@@ -400,14 +400,14 @@ class ND280Software:
 
         ## Re-Make the software
         self.MakeND280()
-        
+
         return 0
-    
+
 
     ########################################################################################################################
     def GetPackage(self,package,version=''):
         print 'Get package ' + str(package) + ' ' + str(version)
-        
+
         command ='cmt checkout '
         if version:
             command+='-r ' + version + ' '
@@ -415,15 +415,15 @@ class ND280Software:
         self.RunND280Command(command)
         return 0
 
-    ########################################################################################################################    
+    ########################################################################################################################
     def DisableND280Package(self,package):
 
         """ Disables an ND280 package from being installed (comments it out in the global cmt requirements. Needs to be done before making. """
 
         print "Disabling "+package
 
-#         ## Check that the nd280/v#r#p#/ directory is there 
-#         nd280Dir=self.instDir + '/nd280/' + self.nd280ver 
+#         ## Check that the nd280/v#r#p#/ directory is there
+#         nd280Dir=self.instDir + '/nd280/' + self.nd280ver
 #         if not os.path.isdir(nd280Dir):
 #             print 'ERROR: ' + nd280Dir + ' does not exist, so am unable to disable ' + package
 #             return 1
@@ -434,7 +434,7 @@ class ND280Software:
         if not lines or errors:
             print "ERROR: unable to locate requirments for "+package
             return 1
-        
+
         requirementsFile = lines[0].split(':')[0]
 
         # Modify the nd280 requirements to not compile this pacakge
@@ -475,7 +475,7 @@ class ND280Software:
         rtc=os.system(command)
         if rtc:
             raise Error('Could not create software tag ' + tag + ' on the ce ' + ce)
-    
+
     ########################################################################################################################
     def RemoveTag(self,ce=''):
         """ Removes software tags to the CE which the job is being run upon. Use after sucessfully removing an install. """
@@ -486,7 +486,7 @@ class ND280Software:
             if not contact:
                 raise Error('Could not get GLOBUS_GRAM_MYJOB_CONTACT environment variable to determine CE')
             ce=contact.split('/')[2].split(':')[0]
-            
+
         command='lcg-tags --ce ' + ce + ' --vo t2k.org --remove --tags ' + tag
         print command
         rtc=os.system(command)
@@ -503,8 +503,8 @@ class ND280Software:
 
         print 'Get current package version of ' + str(package)
 
-        ## Check that the nd280/v#r#p#/ directory is there 
-        nd280Dir=self.instDir + '/nd280/' + self.nd280ver 
+        ## Check that the nd280/v#r#p#/ directory is there
+        nd280Dir=self.instDir + '/nd280/' + self.nd280ver
         if not os.path.isdir(nd280Dir):
             raise Error(nd280Dir + ' does not exist, so am unable to get version of ' + package)
             return 1
@@ -550,7 +550,7 @@ def GRIDInstall():
 
     ##############################################################################
     # Parser Options
-    
+
     parser = optparse.OptionParser()
     parser.add_option("-v","--version",dest="version",type="string",help="Version of nd280 software to install")
     parser.add_option("-m","--module", dest="module", type="string",help="To install one specific module inside an existing nd280 package e.g. oaRecon,v0r0")
@@ -562,7 +562,7 @@ def GRIDInstall():
     parser.add_option("-b","--beam",   dest="beam",   type="string",help="Set to 1 to just get beam data")
     (options,args) = parser.parse_args()
     ##############################################################################
-    
+
     # Get Options
     nd280ver = options.version
     if not nd280ver:
@@ -590,7 +590,7 @@ def GRIDInstall():
     os.system('env')
 
     ## Make sure all content is group (lcgadmin) writeable and readable by all
-    os.system('umask 002') 
+    os.system('umask 002')
 
     print 'Set environment'
     sw = ND280Software(nd280ver,name)
@@ -621,7 +621,7 @@ def GRIDInstall():
     #-------------------------------------------------------------
     if module:
         print 'Adding module: ' + str(module) + ' ' + str(revision) + ' to nd280 installation'
-        
+
         os.chdir(sw.instDir) ## cd into the installation directory
 
         revpath = sw.instDir + '/' + module + '/' + revision
@@ -636,7 +636,7 @@ def GRIDInstall():
                 if rtc:
                     print 'Remove failed'
                     return 1
-     
+
         #If the module is there we should replace it with a new version
         if os.path.exists(revpath):
             print 'Not replacing'
@@ -666,7 +666,7 @@ def GRIDInstall():
 
         #Compile all
         sw.MakeND280()
-        
+
         return 0
 
     #Full installation of nd280
@@ -685,7 +685,7 @@ def GRIDInstall():
     ## can be made more generic if requested/required
     print 'Disable packages'
     sw.Disable_ROOTOpenGL()
-        
+
     ## You can enable and disable packages - does not consider dependencies so beware!!!
     sw.DisableND280Package('eventDisplay')
     sw.DisableND280Package('ingridRecon')
@@ -719,14 +719,14 @@ def LocalInstall():
 
     ##############################################################################
     # Parser Options
-    
+
     parser = optparse.OptionParser()
     parser.add_option("-v","--version",dest="version",type="string",help="Version of nd280 software to install")
     parser.add_option("-d","--t2ksoftdir",dest="t2ksoftdir",type="string",help="Optional to pass the t2ksoftdir as an option, otherwise it must be set as an environment variable VO_T2K_ORG_SW_DIR")
-    
+
     (options,args) = parser.parse_args()
     ##############################################################################
-    
+
     # Get Options
     nd280ver = options.version
     if not nd280ver:
@@ -735,7 +735,7 @@ def LocalInstall():
     sw = ND280Software(nd280ver)
     sw.InstallCMT()
     sw.GetND280()
-    
+
     ## Make ND280 Software
     sw.MakeND280()
 
@@ -746,18 +746,18 @@ def LocalInstall():
 
 def ReplaceND280Package():
     """ Use this to replace a single package """
-    
+
     ##############################################################################
     # Parser Options
-    
+
     parser = optparse.OptionParser()
     parser.add_option("-v","--version",dest="version",type="string",help="Version of nd280 software to install")
     parser.add_option("-p","--package",dest="package",type="string",help="The package to replace")
     parser.add_option("-r","--packageversion",dest="packageversion",type="string",help="The version of the package to replace with")
-    
+
     (options,args) = parser.parse_args()
     ##############################################################################
-    
+
     # Get Options
     nd280ver = options.version
     if not nd280ver:

@@ -1,10 +1,10 @@
-#!/usr/bin/env python 
+#!/usr/bin/env python2.7
 
 # June 2011
-# The custom job (run over files with RunCustom.py will run the calibration jobs required to generate calibration 
+# The custom job (run over files with RunCustom.py will run the calibration jobs required to generate calibration
 # constants for 2010b data:
 # Run on raw data as that is distributed everywhere
-# Run unpk and cali through ND280Control but with modified parameters for oaCalib and tfbApplyCalib 
+# Run unpk and cali through ND280Control but with modified parameters for oaCalib and tfbApplyCalib
 # Run SimpleTrackFitter.exe on these output cali files
 # Run collectMuonData.exe on the SimpleTrackFitter output
 # copy the cali output to the relevant directory
@@ -34,7 +34,7 @@ parser.add_option("--useTestDB",   action='store_true', default=False, help="Pre
 
 ###############################################################################
 
-# Main Program 
+# Main Program
 nd280ver = options.version
 if not nd280ver:
     sys.exit('Please enter a version of the ND280 Software to use')
@@ -57,13 +57,13 @@ time.sleep(rt)
 
 print 'INPUT FILE: ' + input
 input_file = ND280File(input)
-    
+
 ## Create Job object
 print 'Job object'
 fmem   = 20*1024*1024  # max 20GB file size
 vmem   = 4 *1024*1024  # max 4GB memory
 tlim   = 24*3600       # max 24h running
-dbtime = 2097-15-20    # check this! 
+dbtime = 2097-15-20    # check this!
 
 modules    = "oaCalib"
 modulelist = []

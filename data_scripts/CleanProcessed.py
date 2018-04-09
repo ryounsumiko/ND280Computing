@@ -42,7 +42,7 @@ parser.add_option("--recipient",    type="string", help="send notification email
 
 # Addresses for email updates:
 sender    = 'j.perkin@shef.ac.uk'
-recipient = options.recipient 
+recipient = options.recipient
 
 ## Input Data path:
 if not options.fullpath:
@@ -121,7 +121,7 @@ if options.skip:
         print "Skipping "+skip+" removal"
         if skip!='ALL':
             skip_list.append('/'+skip)
-        
+
 
 ## Failsafe for noRegDark - only allow if deleting and not copying...
 if options.noRegDark:
@@ -130,7 +130,7 @@ if options.noRegDark:
         print '--delete:  ',options.delete
         print '--filetags:',options.filetags
         sys.exit(1)
-    
+
 
 ## Resource
 resources = 'RAL','TRIUMF'
@@ -142,7 +142,7 @@ elif options.T1 == 'RAL':
     T1 = 'srm-t2k.gridpp.rl.ac.uk'
 elif options.T1 == 'TRIUMF':
     T1 = 't2ksrm.nd280.org'
-       
+
 
 ## Descend into directory:
 os.system('clear')
@@ -157,7 +157,7 @@ if errors or not lines:
 filelist = lines
 
 
-## Run until all T2 replicas are cleared: 
+## Run until all T2 replicas are cleared:
 is_cleared = False
 
 
@@ -216,7 +216,7 @@ try:
                 if interest in listfile:
 
                     ## Check proxy is still valid
-                    CheckVomsProxy()
+                    IsValidProxy()
 
                     ## The path of the interesting processed data
                     proc_path = 'lfn:'+rmNL(listfile.replace(':','/'))
@@ -247,7 +247,7 @@ try:
                     proc_dir = ND280Dir(proc_path,skipFailures=True,ls_timeout=3600)
 
                     ## ignore empty directories!
-                    lines,errors = runLCG('lfc-ls '+proc_path.replace('lfn:','')) 
+                    lines,errors = runLCG('lfc-ls '+proc_path.replace('lfn:',''))
                     if lines and not proc_dir.ND280Files:
 
                         ## abort if ND280Dir instance is empty
@@ -265,17 +265,17 @@ try:
                     ## Keep track of unwanted replicas and FTS transfers
                     unwanted_replicas = []
 
-                    ## Loop over the files:                
+                    ## Loop over the files:
                     for proc_file in proc_dir.ND280Files:
                         print 'Checking '+proc_file.alias
 
                         ## check proxy
-                        CheckVomsProxy()
+                        IsValidProxy()
 
 
                         ## Is deletion of this file to be skipped?
                         if options.skip=='ALL': is_to_skip = True
-                        else: 
+                        else:
                             is_to_skip = False
                             for skip in skip_list:
                                 if skip in proc_file.alias:
@@ -290,7 +290,7 @@ try:
                                     is_deletable = True
                                     print 'Deletable '+proc_file.alias
 
-                        ## Really don't ever want to copy non-production, i.e. 
+                        ## Really don't ever want to copy non-production, i.e.
                         ## /grid/t2k.org/nd280/v* from TRIUMF to RAL, essential to
                         ## pick these up from T2
                         is_to_copy = True
@@ -298,8 +298,8 @@ try:
                             ## Ignore replicas at TRIUMF and .txt files
                             for proc_srm in proc_file.reps:
                                 if 't2ksrm.nd280.org' in proc_srm or T1 in proc_srm or '.txt' in proc_file.alias:
-                                    is_to_copy = False                            
-                        if not is_to_copy: 
+                                    is_to_copy = False
+                        if not is_to_copy:
                             print 'Will not copy '+proc_file.alias
 
                         ## Is this the last file? (use to force runFTSMulti() to submit transfer)
@@ -317,7 +317,7 @@ try:
                             else:
                                 if is_deletable:
                                     print 'Deleting TRIUMF copy of '+proc_file.filename
-                            
+
                         ## Blank stdout, stderr buffers
                         lines  = []
                         errors = []
@@ -334,7 +334,7 @@ try:
                                 print 'Will not copy '+proc_file.filename+' from TRIUMF to RAL'
                             else:
                                 print 'Copying '+proc_file.filename+' to '+T1
-                            
+
                                 if options.noRegDark:
                                     print 'Alert!: Overriding noRegDark==1'
                                     options.noRegDark = 0
@@ -345,7 +345,7 @@ try:
                                         message = 'Error!: should not invoke CopySRM if filetags == delete'
                                         print message
                                         raise Exception(message)
-                                try: 
+                                try:
                                     ## Append PID to fts transfer file name here
                                     proc_file.CopySRM(T1,options.fts,is_last_file,os.getpid())
                                 except:
@@ -376,12 +376,12 @@ try:
 
                         ## File is at T1
                         elif proc_file.OnSRM(T1) or is_deletable:
-                            
+
                             ## Skip T2 deletion?
                             if is_to_skip:
                                 print 'Skipping T2 deletion of '+proc_file.alias
                                 continue
-                            
+
 
                             ## Is it deletable?
                             if is_deletable:
@@ -402,14 +402,14 @@ try:
                                         print 'Deleting '+proc_srm
                                         command = 'lcg-del -v --vo t2k.org '+proc_srm
                                         lines,errors = runLCG(command)
-                                        
+
 
                         ## File failed to copy
                         else:
                             if is_to_copy:
                                 print 'Failed to copy file: '+proc_file.filename
                             print 'Hmmm, did not want to copy '+proc_file.filename
-                                
+
 
                         ## Handle lcg-del errors
                         if errors:
@@ -479,7 +479,7 @@ try:
             is_cleared = True
         else: print 'Nope.'
 
-        
+
         ## Wait for FTS transfers
         if not is_cleared:
             print 'Waiting for FTS...'
@@ -499,11 +499,11 @@ try:
                         # otherwise add large number to ensure loop persists
                         else:
                             n_active += 100
-                            
+
                 if n_active < 20:
                     break
                 sleep(60)
-        
+
         ## Increment counter
         n_repeats += 1
 

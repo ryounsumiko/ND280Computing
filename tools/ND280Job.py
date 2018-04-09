@@ -49,7 +49,7 @@ class ND280Job(object):
         # Unless every instance of voms -> dirac has been checked,
         # set dirac to be true here and change it manually if need
         # to use false otherwise
-        self.dirac = True
+        # self.dirac = True
 
         ## Copy vector file to working directory for respins
         self.localVector = ''
@@ -158,14 +158,8 @@ class ND280Job(object):
         sys.stdout.flush()
         print 'TestCopy'
 
-        proxy_status = ND280GRID.status_flags.PROXY_INVALID
-        if self.dirac:
-            proxy_status = ND280GRID.CheckDiracProxy()
-            if proxy_status != ND280GRID.status_flags.PROXY_VALID:
-                sys.exit('No valid proxy!')
-        else:
-            if ND280GRID.CheckVomsProxy():
-                sys.exit('No valid proxy!')
+        if not ND280GRID.IsValidProxy():
+            sys.exit('No valid proxy!')
 
         # Construct logical file name for test copy
         lfn = dirBegin + '/logf'

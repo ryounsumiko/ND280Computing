@@ -1,4 +1,4 @@
-#!/usr/bin/env python 
+#!/usr/bin/env python2.7
 
 import optparse
 import ND280GRID
@@ -61,7 +61,7 @@ config    = options.config
 extrafile = options.extrafile
 modules   = options.modules
 dirs      = options.dirs
-resource  = options.resource	
+resource  = options.resource
 delegation= options.delegation
 nsub      = options.nsub
 queuelim  = options.queuelim
@@ -130,12 +130,12 @@ for f in filelist:
     if counter%prescale > 0 and miss == 0:
         continue
     miss=0
-    
+
     f=str(f.replace('\n',''))
     print f
 
     #Check proxy
-    if ND280GRID.CheckVomsProxy() == 1:
+    if not ND280GRID.IsValidProxy():
         print 'Proxy expired'
         break
 
@@ -154,7 +154,7 @@ for f in filelist:
     #Is a version of NEUT to be used?
     if options.neutVersion:
         optionsDict ['neutVersion'] = options.neutVersion
-    
+
         #How many POT?
         optionsDict ['POT'] = options.POT
 
@@ -175,7 +175,7 @@ for f in filelist:
         flines = fjid.readlines()
         if len(flines) > 1:
             joblink = flines[1]
-            jar=joblink.split('/')                
+            jar=joblink.split('/')
             jobout=jar[-1]
             jout=outdir + username + '_' + jobout
             if os.path.isfile(jout):

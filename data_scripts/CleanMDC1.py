@@ -12,7 +12,7 @@ Will delete all pre reco files, reco and anal files to be archived at RAL.
 import ND280GRID
 from ND280GRID import runLCG
 from ND280GRID import rmNL
-from ND280GRID import CheckVomsProxy
+from ND280GRID import IsValidProxy
 
 import os
 
@@ -34,7 +34,7 @@ while not isCleaned:
         print 'Iteration '+str(nIterations)
         
         command='lcg-ls '+srm_a+'/'+root_a+'/mdc0'
-        CheckVomsProxy()
+        IsValidProxy()
         lines,errors = runLCG(command)
         if errors:
             raise exception
@@ -43,7 +43,7 @@ while not isCleaned:
         #    generator_dir = rmNL(line)
         #    
         #    command='lcg-ls '+srm_a+generator_dir
-        #    CheckVomsProxy()
+        #    IsValidProxy()
         #    lines,errors = runLCG(command)
         #    if errors:
         #        raise exception
@@ -53,7 +53,7 @@ while not isCleaned:
             nd280_dir = rmNL(line)
 
             command='lcg-ls '+srm_a+nd280_dir
-            CheckVomsProxy()
+            IsValidProxy()
             lines,errors = runLCG(command)
             if errors:
                 raise exception
@@ -66,7 +66,7 @@ while not isCleaned:
 
                 if not '/anal' in nd280_file and not '/reco' in nd280_file:
                     command = 'lcg-del -l '+srm_a+nd280_file
-                    CheckVomsProxy()
+                    IsValidProxy()
                     lines,errors = runLCG(command)
                     #if errors:
                     #    raise exception
@@ -76,12 +76,12 @@ while not isCleaned:
                     src_file = srm_a+nd280_file
 
                     command = 'lfc-ls '+lfc_file
-                    CheckVomsProxy()
+                    IsValidProxy()
                     rtc = os.system(command)
 
                     if rtc:
                         command = 'lcg-rf -l '+lfc_file+' '+src_file
-                        CheckVomsProxy()
+                        IsValidProxy()
                         lines,errors = runLCG(command)
                         #if errors:
                         #    raise exception
@@ -89,7 +89,7 @@ while not isCleaned:
                         ## Throws up error 'Using grid catalog type: UNKNOWN'
                         ## even if successful so check exit code instead
                         command = 'lcg-rep -v -d '+dest_file+' '+src_file
-                        CheckVomsProxy()
+                        IsValidProxy()
                         print 'Try '+command
                         rtc = os.system(command)
                         #if rtc:
@@ -98,14 +98,14 @@ while not isCleaned:
                         ## Check for existance of replica before proceeding
                         ## with deletion
                         command = 'lcg-ls '+dest_file
-                        CheckVomsProxy()
+                        IsValidProxy()
                         lines,errors = runLCG(command)
                         if errors:
                             pass  # raise exception
                         else:
                             print 'Now deleting '+src_file
                             command = 'lcg-del '+src_file
-                            CheckVomsProxy()
+                            IsValidProxy()
                             lines,errors = runLCG(command)
                             #if errors:
                             #    raise exception

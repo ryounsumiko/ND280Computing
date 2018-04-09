@@ -1,15 +1,13 @@
 #!/bin/bash
 
-
 unset ROOTSYS
 unset MYPROXY_SERVER
-export ND280TRANSFERS=/Raid/home/mhogan/nd280_filetransfers
-
+export ND280TRANSFERS=$PWD
 
 ## source this script to setup python path to look for the nd280Computing tools and the
 ## ND280COMPUTINGROOT env variable.
 ##export ND280COMPUTINGROOT=$(cd $(dirname "${BASH_SOURCE[0]}") && pwd) ## export this as an env var
-export ND280COMPUTINGROOT=/Raid/software/t2k/ND280Computing
+export ND280COMPUTINGROOT=$PWD
 echo '$ND280COMPUTINGROOT='$ND280COMPUTINGROOT
 
 ## Set the CVS path

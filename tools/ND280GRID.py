@@ -39,19 +39,6 @@ fts3_active_list = ['Active', 'Pending', 'Ready', 'Submitted']
 fts3_finished_list = ['Finished', 'FinishedDirty']
 fts3_failed_list = ['Canceled', 'Failed']
 
-# Master dictionary containing storage elements (SE) bindings
-# FORMAT se : [root, fts2Channel, hasSpaceToken]
-se_master = SE.SE_MASTER
-
-# SRM root directories
-se_roots = SE.SE_ROOTS
-
-# FTS channel name associated with each SRM
-se_channels = SE.SE_CHANNELS
-
-# Sites enabled with T2KORGDISK space token
-se_spacetokens = SE.SE_SPACETOKENS
-
 # Number of files put in an FTS transfer limit to 200
 # since monitoring pages only display 200 files
 # http://lcgwww.gridpp.rl.ac.uk/cgi-bin/fts-mon/fts-mon.pl?q=jobs&p=day&v=t2k.org
@@ -78,6 +65,25 @@ class status_wait_times(object):
     kTimeout = 5 * kMinute
 
 
+"""
+#############################################################
+original SE methods defined in StorageElements, added them here for
+backward compatability
+"""
+# Master dictionary containing storage elements (SE) bindings
+# FORMAT se : [root, fts2Channel, hasSpaceToken]
+se_master = SE.SE_MASTER
+
+# SRM root directories
+se_roots = SE.SE_ROOTS
+
+# FTS channel name associated with each SRM
+se_channels = SE.SE_CHANNELS
+
+# Sites enabled with T2KORGDISK space token
+se_spacetokens = SE.SE_SPACETOKENS
+
+
 def GetSEChannels():
     """simple get'er method for channel names associated with each SRM"""
     return SE.GetSEChannels()
@@ -86,6 +92,25 @@ def GetSEChannels():
 def GetSERoots():
     """simple get'er method for SRM root directories"""
     return SE.GetSERoots()
+
+
+def GetSEFromSRM(srm):
+    """Strip the SE from an SRM"""
+    return SE.GetSEFromSRM(srm)
+
+
+def GetLiveSERoots():
+    """ Compile the SE root-directory dictionary live from
+    lcg-infosites rather than hard coding """
+    return SE.GetLiveSERoots()
+
+
+def GetListOfSEs():
+    """ Get list of Storage Elements """
+    return SE.GetListOfSEs()
+
+
+""" ############################################################# """
 
 
 def countActiveProcesses(processList=[]):
@@ -106,12 +131,6 @@ sleeping until there are < %d ...' % (nActive, limit)
         time.sleep(status_wait_times.kProcessWait)
 
     return
-
-
-def GetLiveSERoots():
-    """ Compile the SE root-directory dictionary live from
-    lcg-infosites rather than hard coding """
-    return SE.GetLiveSERoots()
 
 
 def GetTopLevelDir(storageElement):
@@ -206,11 +225,6 @@ def GetListPopenCommand(command):
     except Exception as exception:
         print str(exception)
     return [], errors
-
-
-def GetListOfSEs():
-    """ Get list of Storage Elements """
-    return SE.GetListOfSEs()
 
 
 def GetListOfCEs():
@@ -556,7 +570,7 @@ def runFTS(original_filename, copy_filename):
     # if getMyProxyPwd():
     #    command+= ' -p '+getMyProxyPwd()
     # Implement space token
-    srm_b = GetSEFromSRM(copy_filename)
+    srm_b = SE.GetSEFromSRM(copy_filename)
     if se_spacetokens[srm_b]:
         command += ' -t T2KORGDISK'
     command += ' ' + original_filename + ' ' + copy_filename
@@ -906,18 +920,6 @@ def GetT2KSoftDir():
     return t2ksoftdir
 
 
-def GetDefaultSE():
-    """ Get the default SE to store output on, defaults to RAL.
-    Also checks if the default SE is in the list of se_roots """
-
-    default_se = getenv("VO_T2K_ORG_DEFAULT_SE")
-    if not default_se or default_se not in se_roots:
-        default_se = getenv("VO_T2K_DEFAULT_SE")
-    if not default_se or default_se not in se_roots:
-        return "srm-t2k.gridpp.rl.ac.uk"
-    return default_se
-
-
 def GetDiracProxyTimeLeft():
     """Check the "timeleft" output from dirac-proxy-info
     returns an integer value for the number of seconds remaining
@@ -943,8 +945,29 @@ def GetDiracProxyTimeLeft():
     return timeleft, errors
 
 
+def IsValidProxy():
+    """make sure that the proxy is valid, check against flag"""
+    print 'CheckProxy!'
+
+    # if dirac proxy is valid, don't check voms
+    print 'Valid DIRAC proxy?'
+    dirac_proxy = CheckDiracProxy()
+    if dirac_proxy is status_flags.kProxyValid:
+        return True
+
+    print 'NO valid DIRAC proxy'
+    # check voms now
+    print 'Valid VOMS proxy?'
+    voms_proxy = CheckVomsProxy()
+    if voms_proxy is status_flags.kProxyValid:
+        return True
+
+    # both proxies are invalid
+    return False
+
+
 def CheckDiracProxy():
-    """make sure that the proxy is valid, check against flags"""
+    """make sure that the VOMS proxy is valid"""
     print 'CheckDiracProxy'
 
     # initialize
@@ -965,10 +988,10 @@ def CheckDiracProxy():
         if errors:
             print '\n'.join(errors)
         if timeleft < status_wait_times.kProxyExpirationThreshold:
-            return 1
+            return status_flags.kProxyInvalid
 
     # Proxy is valid
-    return 0
+    return status_flags.kProxyValid
 
 
 def CheckVomsProxy():
@@ -1092,11 +1115,6 @@ def RunRange(run):
     runnumber = PadOutRun(str(runnumber))
 
     return runnumber + "_" + runend
-
-
-def GetSEFromSRM(srm):
-    """Strip the SE from an SRM"""
-    return srm.replace('//', '/').replace('srm:/', '').split('/')[0]
 
 
 def GetNDaysRawFileList(nDays=10, subDet='nd280'):
@@ -1288,7 +1306,7 @@ class ND280File(object):
         # it is set to false for ND280Dir.ND280File since the ND280Dir
         # constructor does this check too
         if check:
-            if CheckVomsProxy():
+            if not IsValidProxy():
                 raise self.Error('No valid proxy')
             SetGridEnv()
 
@@ -1297,7 +1315,7 @@ class ND280File(object):
         self.filename = fn.split('/')[len(fn.split('/'))-1]
         self.path = fn.replace(self.filename, '')
 
-        self.turl = str()  # transfer url used by some file systems
+        self.turl = ''  # transfer url used by some file systems
 
         # Get the replicas of this file
         self.reps = []
@@ -1356,15 +1374,18 @@ and does not exist on the local system ' + fn)
         """ Clean up after the object.
         If you have requested a turl then set file status to done. """
         # If you have a turl set the file state to done.
-        if self.turl:
-            command = 'lcg-sd ' + self.turl[0] + ' '
-            command += self.turl[2].replace('\n', '') + ' 0'
-            print command
-            rtc = system(command)
-            if rtc:
-                raise self.Error('Could not set done file turl '
-                                 + self.turl[0] + ' located at '
-                                 + self.turl[1])
+        try:
+            if self.turl or :
+                command = 'lcg-sd ' + self.turl[0] + ' '
+                command += self.turl[2].replace('\n', '') + ' 0'
+                print command
+                rtc = system(command)
+                if rtc:
+                    raise self.Error('Could not set done file turl '
+                                     + self.turl[0] + ' located at '
+                                     + self.turl[1])
+        except self.Error as err:
+            print str(err)
 
     # Internal Error class for raising errors
     class Error(Exception):
@@ -1849,7 +1870,7 @@ class ND280Dir(object):
         self.last_file_name: name of last file in this directory
 
         """
-        if CheckVomsProxy():
+        if not IsValidProxy():
             raise self.Error('No valid proxy')
         SetGridEnv()
 
@@ -2498,8 +2519,8 @@ so cannot choose %s going with %s" % (max, str(self.jobno, max))
     def GetOutput(self):
         """ Get the output sandbox """
         outdir = self.jidfilename.replace('.jid', '_' + self.jobno)
-        command = 'glite-wms-job-output\
---dir %s -i %s' % (outdir, self.jidfilename)
+        command = 'dirac-wms-job-get-output -f ' + self.jidfilename
+        command += ' --Dir ' + outdir
         lines, errors = GetListPopenCommand(command)
 
         if not lines or len(lines) <= 0:

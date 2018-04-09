@@ -2,12 +2,10 @@
 
 """Storage Elements (SE) info in one convenient location"""
 import os
-from os import system
+from os import system, getenv
 from os.path import join
 
-import ND280Grid
-from ND280Grid import GetListPopenCommand
-from ND280Grid import runLCG, rmNL
+import ND280GRID
 
 
 # FORMAT se : [root, fts2Channel, hasSpaceToken]
@@ -174,32 +172,32 @@ def GetTopLevelDir(storageElement):
         command += " -P " + testFileName
         command += join(" -l lfn:/grid/t2k.org/test", testFileName)
         command += " file:" + testFileName
-        lines, errors = runLCG(command, is_pexpect=False)
+        lines, errors = ND280GRID.runLCG(command, is_pexpect=False)
         if errors:
             raise Exception
 
         # Use GUID to retrieve data path to
         # test file, and hence top level directory
-        command = "lcg-lr --vo t2k.org " + rmNL(lines[0])
-        lines, errors = runLCG(command, is_pexpect=False)
+        command = "lcg-lr --vo t2k.org " + ND280GRID.rmNL(lines[0])
+        lines, errors = ND280GRID.runLCG(command, is_pexpect=False)
         if errors:
             raise Exception
 
         surl = lines[0]
-        top_level_dir = rmNL(surl.replace(testFileName, ''))
+        top_level_dir = ND280GRID.rmNL(surl.replace(testFileName, ''))
 
     # Exception handles access errors, bit of a cludge
     except Exception as exception:
         # Carry on regardless, get data path with error
         print str(exception)
-        print 'Exception: ' + rmNL(errors[0])
-        top_level_dir = rmNL(errors[0].split('lcgCr')[0])
+        print 'Exception: ' + ND280GRID.rmNL(errors[0])
+        top_level_dir = ND280GRID.rmNL(errors[0].split('lcgCr')[0])
 
         command = 'lcg-ls --vo t2k.org ' + top_level_dir + testFileName
-        lines, errors = runLCG(command, is_pexpect=False)
+        lines, errors = ND280GRID.runLCG(command, is_pexpect=False)
         if lines:
             command = command.replace('lcg-ls', 'lcg-del -l')
-            runLCG(command, is_pexpect=False)
+            ND280GRID.runLCG(command, is_pexpect=False)
 
     # Clean up, don't worry about errors
     system("rm -f " + testFileName)
@@ -221,8 +219,8 @@ def GetListOfSEs():
     """ Get list of Storage Elements """
     print 'GetListOfSEs'
 
-    command = "lcg-infosites --vo %s se" % ND280Grid.VO
-    lines, errors = GetListPopenCommand(command)
+    command = "lcg-infosites --vo %s se" % ND280GRID.VO
+    lines, errors = ND280GRID.GetListPopenCommand(command)
     if len(lines) > 2:
         # skip first 2 lines
         lines = lines[2:]
@@ -244,3 +242,20 @@ def GetListOfSEs():
     else:
         print 'Could not get list of SEs'
     return list()
+
+
+def GetDefaultSE():
+    """ Get the default SE to store output on, defaults to RAL.
+    Also checks if the default SE is in the list of se_roots """
+
+    default_se = getenv("VO_T2K_ORG_DEFAULT_SE")
+    if not default_se or default_se not in SE_ROOTS:
+        default_se = getenv("VO_T2K_DEFAULT_SE")
+    if not default_se or default_se not in SE_ROOTS:
+        return "srm-t2k.gridpp.rl.ac.uk"
+    return default_se
+
+
+def GetSEFromSRM(srm):
+    """Strip the SE from an SRM"""
+    return srm.replace('//', '/').replace('srm:/', '').split('/')[0]

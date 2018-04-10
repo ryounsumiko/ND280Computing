@@ -117,12 +117,14 @@ for a_file in filelist:
 
     # Create file instance
     try:
+        print a_file
         infile = ND280File(a_file)
     except Exception as excpt:
         print str(excpt)
         print 'File not on LFN, skipping'
         continue
 
+    print 'Done making infile', a_file
     runnum = str(infile.GetRunNumber())
     subrunnum = str(infile.GetSubRunNumber())
     jdlbasename = '_'.join(['ND280Custom', nd280ver, runnum, subrunnum])
@@ -190,7 +192,7 @@ for a_file in filelist:
             print 'Error: rm -rf ' + jidname + ' failed'
 
     if options.dirac:
-        command = 'dirac-wms-job-submit ' + jdlname + ' > ' + jidname
+        command = 'dirac-wms-job-submit -f %s %s ' % (jidname, jdlname)
     else:
         command = 'glite-wms-job-submit'
         if delegation:

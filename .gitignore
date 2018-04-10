@@ -1,8 +1,8 @@
-./*pyo
-./*pyc
-./*/*pyo
-./*/*pyc
+*pyo
+*pyc
+*/*pyo
+*/*pyc
 *.swp
 *.swo
-./*/*.swp
-./*/*.swo
+*/*.swp
+*/*.swo

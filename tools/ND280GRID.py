@@ -13,7 +13,7 @@ from os.path import join
 import pexpect
 import re
 import subprocess
-from subprocces import check_output as chko
+from subprocess import check_output as chko
 import sys
 import time
 import traceback
@@ -389,8 +389,10 @@ def GetTransferStatus(transfer='', SOURCE='', DEST=''):
         return Fail
 
 
-# The GRID is flaky, timeout commands or wrap them in pexpect
 def runLCG(in_command, in_timeout=status_wait_times.kTimeout, is_pexpect=True):
+    """ The GRID is flaky, timeout commands or wrap them in pexpect"""
+
+    print in_command
 
     lines = list()
     errors = list()
@@ -435,9 +437,14 @@ def runLCG(in_command, in_timeout=status_wait_times.kTimeout, is_pexpect=True):
             # print child.after
 
             # Read output from temp file stripping carriage returns
+            output = list()
             fout.seek(0)
-            output = [line.strip() for line in fout.readlines()]
+            readlines = fout.readlines()
+            for line in readlines:
+                line = line.strip()
+                output.append(line)
 
+            print str(output)
             # Close and delete temp file
             fout.close()
             os.remove(temp_filename)
@@ -500,6 +507,7 @@ def runLCG(in_command, in_timeout=status_wait_times.kTimeout, is_pexpect=True):
         lines = [l.strip() for l in lines]
         errors = [e.strip() for e in errors]
 
+    print 'returned'
     return lines, errors
 
 
@@ -930,8 +938,8 @@ def GetDiracProxyTimeLeft():
     command = 'dirac-proxy-info'
     lines, errors = runLCG(command)
 
-    if lines:
-        for a_line in lines.split('\n'):
+    if lines and type(lines) is list:
+        for a_line in lines:
             if a_line.find('timeleft') == -1:
                 continue
             time_string = a_line.split('timeleft')[1]
@@ -1304,8 +1312,10 @@ class ND280File(object):
         # check argument allows for disabling of proxy and env check for speed
         # it is set to false for ND280Dir.ND280File since the ND280Dir
         # constructor does this check too
+        self.turl = str()  # transfer url used by some file systems
         if check:
             if not IsValidProxy():
+                print 'INVALID PROXY'
                 raise self.Error('No valid proxy')
             SetGridEnv()
 
@@ -1314,25 +1324,26 @@ class ND280File(object):
         self.filename = fn.split('/')[len(fn.split('/'))-1]
         self.path = fn.replace(self.filename, '')
 
-        self.turl = ''  # transfer url used by some file systems
-
         # Get the replicas of this file
-        self.reps = []
-        self.alias = ''
-        self.guid = ''
+        self.reps = list()
+        self.alias = str()
+        self.guid = str()
         self.size = 0
-        self.gridfile = ''
+        self.gridfile = str()
         self.is_a_dir = False
+
+        print 'fn', fn
         try:
-            if fn in ('lfn:', 'srm:', 'guid:'):
+            if 'lfn:' in fn or 'srm:' in fn or 'guid:' in fn:
                 self.reps = getReps(fn)
                 self.alias = getAlias(fn)
                 self.guid = getGUID(fn)
 
                 # Get the file size from the (formatted) LFC long listing
+                command = 'lfc-ls -ld ' + self.alias.replace('lfn:', '')
+                print 'command', command
                 try:
-                    lines, errors = runLCG('lfc-ls -ld ' +
-                                           self.alias.replace('lfn:', ''))
+                    lines, errors = runLCG(command)
                     if lines:
                         self.size = int(lines[0][27:51])
                         self.is_a_dir = 'd' in lines[0][0]
@@ -1373,18 +1384,15 @@ and does not exist on the local system ' + fn)
         """ Clean up after the object. If you have requested a turl
         then set file status to done. """
         # If you have a turl set the file state to done.
-        try:
-            if self.turl:
-                command = 'lcg-sd ' + self.turl[0] + ' '
-                command += self.turl[2].replace('\n', '') + ' 0'
-                print command
-                rtc = system(command)
-                if rtc:
-                    raise self.Error('Could not set done file turl '
-                                     + self.turl[0] + ' located at '
-                                     + self.turl[1])
-        except self.Error as err:
-            print str(err)
+        if self.turl:
+            command = 'lcg-sd ' + self.turl[0] + ' '
+            command += self.turl[2].replace('\n', '') + ' 0'
+            print command
+            rtc = system(command)
+            if rtc:
+                raise self.Error('Could not set done file turl '
+                                 + self.turl[0] + ' located at '
+                                 + self.turl[1])
 
     class Error(Exception):
         """Internal Error class for raising errors"""
@@ -2531,7 +2539,8 @@ class ND280JID(object):
         Site=LCG.UKI-NORTHGRID-MAN-HEP.uk;"
         """
 
-        matchObj = re.match(r'.*JobID=(.*?) Status=(.*?); MinorStatus=(.*?); Site=(.*?);', jobStatus, re.M | re.I)
+        matchObj = re.match(r'.*JobID=(.*?) Status=(.*?); \
+MinorStatus=(.*?); Site=(.*?);', jobStatus, re.M | re.I)
         if matchObj:
             # print "matchObj.group() : ", matchObj.group()
             # print "matchObj.group(1) : ", matchObj.group(1)

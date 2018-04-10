@@ -6,6 +6,37 @@ from os import system, getenv
 from os.path import join
 
 import ND280GRID
+import ND280Computing as ND280Comp
+
+
+class units(object):
+    """stores unit conversions for bytes"""
+
+    def __init__(self, kilobyte=1.0):
+        self.RescaleKilobyte(kilobyte)
+
+    def RescaleKilobyte(self, kilobyte=1.0):
+        """
+        Set the scale for any unit storage
+        If you want byte to be size 1, then Rescale(1000.)
+        """
+
+        self.kKilobyte = kilobyte
+        # decimal units
+        self.kMegabyte = 1.0e-03 * self.kKilobyte
+        self.kGigabyte = 1.0e-03 * self.kMegabyte
+        self.kTerabyte = 1.0e-03 * self.kGigabyte
+        self.kByte = 1.0e+03 * self.kKilobyte
+        self.kKB = self.kKilobyte
+        self.kMB = self.kMegabyte
+        self.kGB = self.kGigabyte
+        self.kTB = self.kTerabyte
+
+        # powers of 2
+        self.kKibibyte = 1024 * self.kByte
+        self.kMebibyte = 1024 * self.kKibibyte
+        self.kGibibyte = 1024 * self.kMebibyte
+        self.kTebibyte = 1024 * self.kGibibyte
 
 
 # FORMAT se : [root, fts2Channel, hasSpaceToken]
@@ -219,8 +250,8 @@ def GetListOfSEs():
     """ Get list of Storage Elements """
     print 'GetListOfSEs'
 
-    command = "lcg-infosites --vo %s se" % ND280GRID.VO
-    lines, errors = ND280GRID.GetListPopenCommand(command)
+    command = "lcg-infosites --vo %s se" % ND280Comp.VO
+    lines, errors = ND280Comp.GetListPopenCommand(command)
     if len(lines) > 2:
         # skip first 2 lines
         lines = lines[2:]
@@ -259,3 +290,75 @@ def GetDefaultSE():
 def GetSEFromSRM(srm):
     """Strip the SE from an SRM"""
     return srm.replace('//', '/').replace('srm:/', '').split('/')[0]
+
+
+def PrintSEDiskUsage():
+    """ Print Storage Element Disk Usage """
+    command = "lcg-infosites --vo t2k.org se"
+    lines, errors = ND280Comp.GetListPopenCommand(command)
+
+    print 'Free (TB)  Used(TB)  SE'
+    print '-------------------------------------------------'
+
+    # skip first 2 lines
+    if lines:
+        for line in lines[2:]:
+
+            words = line.split()
+            seFree, seUsed, seName = words[0], words[1], words[2]
+
+            # Ignore manchester and heplnx204.pp.rl.ac.uk (for now)
+            if 'manchester' in seName:
+                continue
+            if 'heplnx204' in seName:
+                continue
+
+            if 'n.a' in seFree:
+                seFree = 0
+            else:
+                seFree = float(seFree) * units().kTerabyte
+            if 'n.a' in seUsed:
+                seUsed = 0
+            else:
+                seUsed = float(seUsed) * units().kTerabyte
+
+            # Ignore if free and used both 0
+            if seFree == 0 and seUsed == 0:
+                continue
+
+            print '%9.2f %9.2f  %s' % (seFree, seUsed, seName)
+    else:
+        if errors:
+            print '\n'.join(errors)
+
+
+def PrintSESpaceUsage():
+    """ Print Storage Element Space Usage """
+
+    command = "lcg-infosites --vo t2k.org space"
+    lines, errors = ND280Comp.GetListPopenCommand(command)
+
+    print '    Free     Used     Free     Used              Tag SE'
+    print '  Online   Online Nearline Nearline (TB)                   '
+    print '--------------------------------------------------------------------------------'
+
+    if lines:
+        lines = lines[3:]
+        for line in lines:
+
+            words = line.split()
+            onlineFree = float(words[0]) / 1024.
+            onlineUsed = float(words[1]) / 1024.
+            nearlineFree = float(words[3]) / 1024.
+            nearlineUsed = float(words[4]) / 1024.
+            tag = words[6]
+            se = words[7]
+
+            # Ignore if free and used both 0|1
+            if onlineUsed <= 1 and onlineUsed <= 1:
+                continue
+
+            print '%8.2f %8.2f %8.2f %8.2f %16s %s' % (onlineFree, onlineUsed, nearlineFree, nearlineUsed, tag, se)
+    else:
+        if errors:
+            print '\n'.join(errors)

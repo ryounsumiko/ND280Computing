@@ -12,21 +12,16 @@ from os import system, getenv, getpid, getcwd
 from os.path import join
 import pexpect
 import re
-from subprocess import Popen, PIPE
+import subprocess
+from subprocces import check_output as chko
 import sys
 import time
 import traceback
 
+import ND280Computing as ND280Comp
+from ND280Computing import status_wait_times, status_flags, VO
+from ND280Computing import NONRUNND280JOBS
 import StorageElement as SE
-
-# t2k.org VO name
-VO = 't2k.org'
-
-# The ND280 detectors
-ND280DETECTORS = ['ECAL', 'FGD', 'ND280', 'P0D', 'SMRD', 'TPC']
-
-# The non runND280 job types
-NONRUNND280JOBS = ['HADD', 'FlatTree', 'MiniTree']
 
 # FTS2 transfer statuses:
 fts2_active_list = ['Active', 'Pending', 'Ready', 'Finishing',
@@ -47,26 +42,9 @@ TRANSFER_FILE_LIST = list()
 MAX_TRANSFERS_PER_CHANNEL = 600
 
 
-class status_flags(object):
-    """a namespace for status flags"""
-    kProxyValid = 0
-    kProxyInvalid = 1
-
-
-class status_wait_times(object):
-    """a namespace for common wait times"""
-    kSecond = 1
-    kMinute = 60 * kSecond
-    kHour = 60 * kMinute
-    kDay = 24 * kHour
-    kProxyExpirationThreshold = 2 * kMinute
-    kProxyNextCheck = 6 * kMinute
-    kProcessWait = 1 * kMinute
-    kTimeout = 5 * kMinute
-
-
+""" ############################################################# """
 """
-#############################################################
+Number of constants and methods here are unweildy
 original SE methods defined in StorageElements, added them here for
 backward compatability
 """
@@ -205,34 +183,12 @@ def GetTopLevelDir(storageElement):
     return top_level_dir
 
 
-def GetListPopenCommand(command):
-    """submits a command with the stdin, out, and err available for printing
-    return the list of lines"""
-
-    try:
-        popen = Popen([command], shell=True,
-                      stdin=PIPE, stdout=PIPE, stderr=PIPE)
-        lines = popen.stdout.readlines()
-        errors = popen.stderr.readlines()
-        # Something bad happened...
-        if errors:
-            print '\n'.join(errors)
-            raise Exception
-
-        return lines, errors
-
-    # Something else bad happened...
-    except Exception as exception:
-        print str(exception)
-    return [], errors
-
-
 def GetListOfCEs():
     """" Get list of Computing Elements """
     print 'GetListOfCEs'
 
     command = "lcg-infosites --vo %s ce" % VO
-    lines, errors = GetListPopenCommand(command)
+    lines, errors = ND280Comp.GetListPopenCommand(command)
     if len(lines) > 2:
         # Skip first 2 lines
         lines = lines[2:]
@@ -252,14 +208,15 @@ def GetListOfCEs():
 def GetFTS2ActiveTransferList(channel=''):
     """ List active FTS transfers:"""
 
-    Fail = [], []
+    # a tuple of lists
+    Fail = list(), list()
     try:
-        transfers = []
-        statuses = []
+        transfers = list()
+        statuses = list()
 
-        command = "glite-transfer-list -s " + getenv("FTS_SERVICE")
+        command = "fts-transfer-list -s " + getenv("FTS_SERVICE")
         if channel:
-            command += ' -c '+channel
+            command += ' -c ' + channel
 
         lines, errors = runLCG(command)
 
@@ -282,34 +239,58 @@ def GetFTS2ActiveTransferList(channel=''):
 def GetActiveTransferList(source='', dest=''):
     """ List active FTS transfers """
 
-    Fail = [], []
+    # a tuple of lists
+    Fail = list(), list()
 
-    if source not in se_roots.keys() or (dest and dest not in se_roots.keys()):
+    if (source not in se_roots.keys() or
+            (dest and dest not in se_roots.keys())):
         print 'Invalid source/destination : source=%s dest=%s' % (source, dest)
         options = '\n\t'.join(se_roots.keys())
         print 'Please choose from the following:\n\n\t%s' % options
         return Fail
 
     try:
+        transfers = list()
+        statuses = list()
 
-        transfers = []
-        statuses = []
-
-        command = 'glite-transfer-list -o t2k.org \
--s %s --source %s' % (getenv("FTS_SERVICE"), source)
+        command = 'fts-transfer-list -o t2k.org'
+        command += ' -s %s --source_se %s' % (getenv("FTS_SERVICE"), source)
         if dest:
-            command += ' --dest ' + dest
+            command += ' --dest_se %s' % (dest)
 
         lines, errors = runLCG(command)
+        # are no FTS transfers but instead the line
+        # 'No data have been found for the specified state(s)
+        # and/or user VO/VOMS roles.'
 
         if errors:
-            # print "Couldn't access " + channel
             return Fail
 
-        transfers = [rmNL(line.split('\t')[0]) for line in lines]
-        statuses = [rmNL(line.split('\t')[1])
-                    for line in lines if len(line.split('\t')) > 1]
+        if "No data have been found" in lines[0]:
+            # return empty transfer,statuses lists
+            return transfers, statuses
+        else:
+            index = 0
+            for line in lines:
+                if "Request" in line:
+                    transfers.append(rmNL(line.split(' ')[2]))
+                if "Status" in line:
+                    statuses.append(rmNL(line.split(' ')[1]))
+                index += 1
 
+                """
+                    Parse the lines
+                FORMAT
+                [
+                    'Request ID: 2fe4b204-6645-11e7-aaac-001dd8b71ccb',
+                    'Status: ACTIVE',
+                    '',
+                    'Request ID: 702331c4-6645-11e7-bf66-001dd8b71cf7',
+                    'Status: SUBMITTED',
+                    ''
+                    ...
+                ]
+                """
         return transfers, statuses
 
     except Exception as exception:
@@ -321,7 +302,8 @@ def GetActiveTransferList(source='', dest=''):
 def GetTransferStatus(transfer='', SOURCE='', DEST=''):
     """ Get status of an FTS transfer"""
 
-    Fail = '', '', ''
+    # a tuple of three strings
+    Fail = str(), str(), str()
     if not transfer:
         return Fail
 
@@ -331,8 +313,8 @@ def GetTransferStatus(transfer='', SOURCE='', DEST=''):
         print 'Looking for DESTINATION=', DEST
 
     try:
-        command = "glite-transfer-status -s " +\
-                   getenv("FTS_SERVICE")+" -l " + transfer
+        command = "fts-transfer-status -s " + os.getenv("FTS_SERVICE")
+        command += " -l " + transfer
 
         lines, errors = runLCG(command, is_pexpect=False)
 
@@ -345,16 +327,30 @@ def GetTransferStatus(transfer='', SOURCE='', DEST=''):
         n_failed = 0
         n_finished = 0
 
-        # Ignoring the first line, there are 6 lines of output per transfer
-        # formatted as follows
-        #        Source:      srm://<smam>
-        #        Destination: srm://<eggs>
-        #        State:       <blah>
-        #        Retries:     <N>
-        #        Reason:      <blah>
-        #        Duration:    <t>
-        #
-        # (with a blank line in between)
+        """
+        Ignoring first line, there are 6 lines of output per transfer
+        formatted as follows
+
+        Source:      srm://<smam>
+        Destination: srm://<eggs>
+        State:       <blah>
+        Retries:     <N>
+        Reason:      <blah>
+        Duration:    <t>
+        Staging      <N>
+        Source:      srm://srm-t2k.gridpp.rl.ac.uk/castor/ads.rl.ac.uk/
+                        prod/t2k.org/test/Trevor20170707_FTS3_REST_Test/
+                        testfile05
+        Destination: srm://t2ksrm.nd280.org/nd280data/
+                        Trevor20170707_FTS3_REST_Test/testfile05
+        State:       FINISHED
+        Reason:
+        Duration:    59
+        Staging:     0
+        Retries:     0
+
+        (with a blank line in between)
+        """
 
         # truncate first line and blank lines
         lines = [l for l in lines[1:] if l.strip()]
@@ -412,16 +408,19 @@ def runLCG(in_command, in_timeout=status_wait_times.kTimeout, is_pexpect=True):
 
         # Regex for identifiying errors
         # (can't easily pick up the stderr pipe separately)
-        error_regex = '(?i)usage: |(?i)no such|\
-(?i)invalid|(?i)illegal|(?i)error|(?i)failure|(?i)no accessible|'
-        error_regex += '(?i)unauthori[sz]ed|(?i)expire|(?i)exceed|\
-(?i)fatal|(?i)abort|(?i)denied|(?i)no available|(?i)timed out'
+        error_regex = '(?i)usage: |(?i)no such|(?i)invalid|'
+        error_regex += '(?i)illegal|(?i)error|(?i)failure|'
+        error_regex += '(?i)no accessible|(?i)unauthori[sz]ed|'
+        error_regex += '(?i)expire|(?i)exceed|(?i)fatal|(?i)abort|'
+        error_regex += '(?i)denied|(?i)no available|(?i)timed out'
 
         # Try 3 times then give up
         print datetime.now()
         while tries < 3:
-            print 'Try pexpect ' + str(tries) + ' of ' + \
-                   in_command + ' with ' + str(in_timeout) + 's timeout'
+            try_state = 'Try pexpect ' + str(tries) + ' of '
+            try_state += in_command + ' with ' + str(in_timeout)
+            try_state += 's timeout'
+            print try_state
 
             # Spawn process
             child = pexpect.spawn(in_command, timeout=in_timeout)
@@ -488,7 +487,7 @@ def runLCG(in_command, in_timeout=status_wait_times.kTimeout, is_pexpect=True):
         for ii in range(3):
             print 'Try %d of %s with %d timeout' % (ii, in_command, in_timeout)
 
-            line, errors = GetListPopenCommand(command)
+            line, errors = ND280Comp.GetListPopenCommand(command)
 
             if errors:
                 print 'ERROR!'
@@ -551,7 +550,7 @@ def getMyProxyPwd():
 
     if pwd_file:
         command = 'cat ' + pwd_file
-        lines, errors = GetListPopenCommand(command)
+        lines, errors = ND280Comp.GetListPopenCommand(command)
         if not errors:
             return rmNL(lines[0])
         else:
@@ -564,11 +563,11 @@ def runFTS(original_filename, copy_filename):
     """ Send a single file to the RAL File Transfer Service """
 
     # Use the FTS service 23-11-10
-    command = 'glite-transfer-submit -K -o -s ' + getenv("FTS_SERVICE")
+    command = 'fts-transfer-submit -K -o -s ' + getenv("FTS_SERVICE")
     # comment out for legacy mode
     command += ' -m '+getenv("MYPROXY_SERVER")
     # if getMyProxyPwd():
-    #    command+= ' -p '+getMyProxyPwd()
+    #     command += ' -p '+ getMyProxyPwd()
     # Implement space token
     srm_b = SE.GetSEFromSRM(copy_filename)
     if se_spacetokens[srm_b]:
@@ -731,26 +730,26 @@ def runFTSMulti(srm, original_filename, copy_filename,
                     time.sleep(status_wait_times.kProcessWait)
 
             # Now, submit the transfer
-            command = 'glite-transfer-submit'
-            command += ' --verbose -v -K -o -s ' + getenv("FTS_SERVICE")
+            command = 'fts-transfer-submit --verbose -K -o'
+            command += ' -s ' + getenv("FTS_SERVICE")
             # comment out for legacy mode
-            command += ' -m '+getenv("MYPROXY_SERVER")
+            command += ' -m ' + getenv("MYPROXY_SERVER")
             # Implement space token
             if se_spacetokens[srm_b]:
                 command += ' -t T2KORGDISK'
-            command += ' -f '+transfer
+            command += ' -f ' + transfer
             # print 'runFTSMulti: '+command
             lines, errors = runLCG(command)
 
             # if this is a transfer out of kek, increase priority
-            if lines and not errors:
-                transfer_id = lines[0]
-                priority = str(5)
-                if 'kek.jp' in srm_a:
-                    command = 'glite-transfer-setpriority'
-                    command += ' -s ' + getenv("FTS_SERVICE")
-                    command += transfer_id + ' ' + priority
-                    lines, errors = runLCG(command)
+            # if lines and not errors:
+            #     transfer_id = lines[0]
+            #     priority = str(5)
+            #     if 'kek.jp' in srm_a:
+            #         command = 'glite-transfer-setpriority'
+            #         command += ' -s ' + getenv("FTS_SERVICE")
+            #         command += transfer_id + ' ' + priority
+            #         lines, errors = runLCG(command)
 
             # Write the transfer log - just FTS ID
             transfer_log = open(transfer_dir + '/transfers.' +
@@ -853,7 +852,7 @@ where DS_directory like \'%'+lfc_dir.split('raw')[1].rstrip('/')\
                    .replace('//', '/') + '\'\" | grep nd280 | wc -l'
         print command
 
-        lines, errors = GetListPopenCommand(command)
+        lines, errors = ND280Comp.GetListPopenCommand(command)
         if not errors:
             return int(lines[0])
         else:
@@ -872,7 +871,7 @@ def GetNGoodRuns(lfc_dir):
     command = 'grep ' + lfc_dir + ' \
 $ND280COMPUTINGROOT/data_scripts/GoodRuns.list | wc -l'
     print command
-    lines, errors = GetListPopenCommand(command)
+    lines, errors = ND280Comp.GetListPopenCommand(command)
     if not errors:
         return int(lines[0])
     else:
@@ -1371,11 +1370,11 @@ and does not exist on the local system ' + fn)
             self.filetype = 'o'
 
     def __del__(self):
-        """ Clean up after the object.
-        If you have requested a turl then set file status to done. """
+        """ Clean up after the object. If you have requested a turl
+        then set file status to done. """
         # If you have a turl set the file state to done.
         try:
-            if self.turl or :
+            if self.turl:
                 command = 'lcg-sd ' + self.turl[0] + ' '
                 command += self.turl[2].replace('\n', '') + ' 0'
                 print command
@@ -1387,8 +1386,8 @@ and does not exist on the local system ' + fn)
         except self.Error as err:
             print str(err)
 
-    # Internal Error class for raising errors
     class Error(Exception):
+        """Internal Error class for raising errors"""
         pass
 
     # Functions to parse certain information from the filename
@@ -2444,53 +2443,111 @@ class ND280JID(object):
 
     def __init__(self, jidfile, jobno=''):
         self.jidfilename = jidfile
-        self.jobno = jobno
+        self.jobno = jobno  # this is the nth job in the file
 
         # Variables which are to be modified
         self.status = ''
-        self.exitcode = ''
-        self.statusreason = ''
-        self.dest = ''
+        # TODO dirac doesnt seem to provide exit code - look into this
+        self.exitcode = str()
+        self.statusreason = str()
+        self.dest = str()
+        self.jobid = str()
 
-        command = "glite-wms-job-status -i " + self.jidfilename
-        child = pexpect.spawn(command)  # ,[], file)
+        """ Sophie KING
+        dirac has different status output format
+        so need to modify all this dirac doest not
+        ask you to pick a job if there are multiple,
+        no need to interact, no need for pexpect can
+        just use match instead
+        """
+
+        # command = "glite-wms-job-status -i " + self.jidfilename
+        # child = pexpect.spawn(command)  # ,[], file)
         # Get the min and max file number
-        index = child.expect(['list - \[([0-9]+)\-?([0-9]+)\]?all:',
-                             pexpect.EOF, pexpect.TIMEOUT])
-        if index == 1:  # Just one file
-            child = pexpect.spawn(command)
+        # index = child.expect(['list - \[([0-9]+)\-?([0-9]+)\]?all:',
+        #                      pexpect.EOF, pexpect.TIMEOUT])
+
+        # if index == 1:  # Just one file
+        #     child = pexpect.spawn(command)
+        #     self.jobno = 1
+        # elif index == 0:
+        #     min, max = child.match.groups()
+        #     # If no job number specified then just go for the most recent
+        #     if not self.jobno:
+        #         self.jobno = max
+        #     # Check the requested jobno
+        #     # if greater than max just choose the max
+        #     if int(self.jobno) <= int(max):
+        #         child.sendline(self.jobno)
+        #     else:
+        #         print "There are just %s IDs in this file\
+# so cannot choose %s going with %s" % (max, str(self.jobno, max))
+        #         child.sendline(max)
+
+        # # Get the current status
+        # child.expect("Current Status: \s+([a-zA-Z0-9_]+)")
+        # self.status = child.match.groups()[0]
+
+        # if "Done" in self.status:
+        #     # print "Status: ", self.status
+        #     child.expect("Exit code: \s+([0-9]+)")
+        #     self.exitcode = child.match.groups()[0]
+
+        # # child.expect("Status Reason:  \s+(.+?)")
+        # child.expect("Status Reason:  \s+([a-zA-Z0-9_]+)")
+        # self.statusreason = child.match.groups()[0]
+
+        # if self.status in ('Done', 'Running', 'Scheduled'):
+        #     child.expect("Destination:   \s+([a-zA-Z0-9_.]+)")
+        #     self.dest = child.match.groups()[0]
+        #     child.expect(pexpect.EOF)
+
+        out = chko(['dirac-wms-job-status', '-f', self.jidfilename],
+                   stderr=subprocess.STDOUT).splitlines()
+        nJobs = len(out)
+        if nJobs == 1:  # Just one file
+            # stat = out[0]
             self.jobno = 1
-        elif index == 0:
-            min, max = child.match.groups()
-            # If no job number specified then just go for the most recent
+        elif nJobs > 1:
+            #  If no job number specified then just go for the most recent
             if not self.jobno:
-                self.jobno = max
+                self.jobno = nJobs
             # Check the requested jobno
             # if greater than max just choose the max
-            if int(self.jobno) <= int(max):
-                child.sendline(self.jobno)
-            else:
-                print "There are just %s IDs in this file\
-so cannot choose %s going with %s" % (max, str(self.jobno, max))
-                child.sendline(max)
+            if int(self.jobno) > int(nJobs):
+                print str("There are just ", max,
+                          " ids in this file so cannot choose ",
+                          self.jobno, " going with ", max)
+                self.jobno = nJobs
 
-        # Get the current status
-        child.expect("Current Status: \s+([a-zA-Z0-9_]+)")
-        self.status = child.match.groups()[0]
+        jobStatus = out[self.jobno-1]
 
-        if "Done" in self.status:
-            # print "Status: ", self.status
-            child.expect("Exit code: \s+([0-9]+)")
-            self.exitcode = child.match.groups()[0]
+        """
+        Example of job status using dirac
+        NB: Notice escape character is NOT in actual outline
 
-        # child.expect("Status Reason:  \s+(.+?)")
-        child.expect("Status Reason:  \s+([a-zA-Z0-9_]+)")
-        self.statusreason = child.match.groups()[0]
+        "JobID=5344779 Status=Done; \
+        MinorStatus=Execution Complete; \
+        Site=LCG.UKI-NORTHGRID-MAN-HEP.uk;"
+        """
 
-        if self.status in ('Done', 'Running', 'Scheduled'):
-            child.expect("Destination:   \s+([a-zA-Z0-9_.]+)")
-            self.dest = child.match.groups()[0]
-            child.expect(pexpect.EOF)
+        matchObj = re.match(r'.*JobID=(.*?) Status=(.*?); MinorStatus=(.*?); Site=(.*?);', jobStatus, re.M | re.I)
+        if matchObj:
+            # print "matchObj.group() : ", matchObj.group()
+            # print "matchObj.group(1) : ", matchObj.group(1)
+            # print "matchObj.group(2) : ", matchObj.group(2)
+            # print "matchObj.group(3) : ", matchObj.group(3)
+            # print "matchObj.group(4) : ", matchObj.group(4)
+
+            self.jobid = matchObj.group(1)
+            self.status = matchObj.group(2)
+            self.statusreason = matchObj.group(3)
+            self.dest = matchObj.group(4)
+        else:
+            print "No match!!  Something wrong with job status!!"
+
+        # soph - TODO - dirac doesnt seem to provide an exit code
+        self.exitcode = '0'  # soph - TODO
 
     def GetStatus(self):
         """get'er for status"""
@@ -2510,18 +2567,20 @@ so cannot choose %s going with %s" % (max, str(self.jobno, max))
 
     def GetRunNo(self):
         """ Get run number from standard format files """
-        return self.jidfilename.split('_')[2]
+        # return self.jidfilename.split('_')[2]
+        return self.jidfilename.split('_')[3]
 
     def GetSubRunNo(self):
         """ Get run number from standard format files """
-        return self.jidfilename.split('_')[3].split('.')[0]
+        # return self.jidfilename.split('_')[3].split('.')[0]
+        return self.jidfilename.split('_')[4].split('.')[0]
 
     def GetOutput(self):
         """ Get the output sandbox """
         outdir = self.jidfilename.replace('.jid', '_' + self.jobno)
         command = 'dirac-wms-job-get-output -f ' + self.jidfilename
         command += ' --Dir ' + outdir
-        lines, errors = GetListPopenCommand(command)
+        lines, errors = ND280Comp.GetListPopenCommand(command)
 
         if not lines or len(lines) <= 0:
             return ''

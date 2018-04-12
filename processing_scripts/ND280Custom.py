@@ -10,6 +10,9 @@ args = '-v v12r15 -i lfn:/grid/t2k.org/nd280/raw/ND280/ND280/00014000_00014999/n
 stdout = 'std.out'
 stderr = 'std.err'
 logfile = 'ND280Custom.log'
+environmentDict = {
+    'VO_T2K_ORG_SW_DIR': '/cvmfs/t2k.egi.eu'
+}
 
 # the executible here '' is later set, so don't confuse users later on
 diracJob = Job('', stdout, stderr)
@@ -17,10 +20,27 @@ diracJob = Job('', stdout, stderr)
 diracJob.setName('ND280Custom')
 # set the program/executable, arguments, logFile, ...
 diracJob.setExecutable(exe, arguments=args, logFile=logfile)
-# set the job length,5 hours
-diracJob.setCPUTime(18000)
+# set the job length
+diracJob.setCPUTime(3600)
 # this file is needed remotely for the job
-diracJob.setInputSandbox(['../tools/*py', '../custom_parameters/*DAT'])
+diracJob.setInputSandbox(
+    [
+        "../custom_parameters/P0DMOD.PARAMETERS.DAT",
+        "RunCustom.py",
+        "P0DCalibProcess.py",
+        "../tools/ND280Computing.py",
+        "../tools/ND280Configs.py",
+        "../tools/ND280GRID.py",
+        "../tools/ND280Job.py",
+        "../tools/ND280Software.py",
+        "../tools/pexpect.py",
+        "../tools/StorageElement.py"
+    ]
+)
+
+# make sure to export VO_T2K_ORG_SW_DIR
+diracJob.setExecutionEnv(environmentDict)
+
 # these files are created by the job regardless of the executable
 diracJob.setOutputSandbox([stdout, stderr, logfile])
 """

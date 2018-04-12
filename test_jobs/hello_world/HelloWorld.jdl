@@ -1,8 +1,0 @@
-[
-JobName = "HelloWorld";
-Executable = "/bin/echo";
-Arguments = "\"Hello world!\"";
-StdOutput = "StdOut";
-StdError = "StdErr";
-OutputSandbox = {"StdOut","StdErr"};
-]

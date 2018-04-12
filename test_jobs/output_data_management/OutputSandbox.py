@@ -10,13 +10,25 @@ stdout = 'std.out'
 stderr = 'std.err'
 logfile = 'job.log'
 
+# the executible here '' is later set, so don't confuse users later on
 diracJob = Job('', stdout, stderr)
-# diracJob.setCPUTime(500)
+# give a descriptive name
 diracJob.setName('OutputSandboxTest')
-diracJob.setInputSandbox(['test.sh'])
+# set the program/executable, arguments, logFile, ...
 diracJob.setExecutable(executable, arguments='test.sh', logFile=logfile)
+# set the job length, not needed in this example
+# diracJob.setCPUTime(500)
+# this file is needed remotely for the job
+diracJob.setInputSandbox(['test.sh'])
+# these files are created by the job regardless of the executable
 diracJob.setOutputSandbox([stdout, stderr, logfile])
-diracJob.setOutputData(['env.out'], outputSE='CA-TRIUMF-T2K1-disk', outputPath='LFN:/grid/t2k.org/nd280/contrib/hogan')
+"""
+Output data is written to / <VO> / user / <initial> / <username>
+so the full path of output data in this example is
+/<VO>/user/<initial>/<username>/tests
+
+"""
+diracJob.setOutputData(['LFN:env.out'], outputSE='CA-TRIUMF-T2K1-disk', outputPath='tests')
 
 print 'job being submitted...'
 dirac = Dirac()

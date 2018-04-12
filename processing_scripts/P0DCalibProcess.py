@@ -18,7 +18,6 @@ copy the anal output rootfile to the relevant directory
 
 import optparse
 import os
-from os.path import exists
 from os.path import join
 import sys
 import random
@@ -26,6 +25,7 @@ from time import sleep
 import ND280GRID
 from ND280GRID import ND280File
 from ND280Job import ND280Process
+import StorageElement as SE
 
 
 def main(argv):
@@ -47,10 +47,6 @@ def main(argv):
 
     (options, args) = parser.parse_args()
 
-    if not (options.version and exists(options.input)):
-        parser.print_help()
-        return
-
     nd280ver = options.version
     if not nd280ver:
         print 'Please enter a version of the ND280 Software to use'
@@ -63,7 +59,7 @@ def main(argv):
         parser.print_help()
         return
 
-    default_SE = ND280GRID.GetDefaultSE()
+    default_SE = SE.GetDefaultSE()
     #########################################################################
     # Parser Options
 
@@ -81,7 +77,8 @@ def main(argv):
     print eightyPounds
 
     # Delay processing by random time to avoid database blocking
-    rt = 200. * random.random()
+    # rt = 200. * random.random()
+    rt = 2. * random.random()
     print eightyPounds
     print 'Sleeping ' + str(rt) + ' seconds'
     print eightyPounds

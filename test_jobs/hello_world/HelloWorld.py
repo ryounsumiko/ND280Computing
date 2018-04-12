@@ -1,9 +1,9 @@
 #!/usr/bin/env python2.7
 
 from DIRAC.Core.Base import Script
+Script.parseCommandLine()
 from DIRAC.Interfaces.API.Dirac import Dirac
 from DIRAC.Interfaces.API.Job import Job
-Script.parseCommandLine()
 
 diracJob = Job()
 diracJob.setCPUTime(500)

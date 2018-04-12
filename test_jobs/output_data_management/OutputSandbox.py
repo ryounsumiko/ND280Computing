@@ -1,9 +1,9 @@
 #!/usr/bin/env python2.7
 
 from DIRAC.Core.Base import Script
+Script.parseCommandLine()
 from DIRAC.Interfaces.API.Dirac import Dirac
 from DIRAC.Interfaces.API.Job import Job
-Script.parseCommandLine()
 
 executable = '/usr/bin/env bash'
 stdout = 'std.out'
@@ -13,8 +13,10 @@ logfile = 'job.log'
 diracJob = Job('', stdout, stderr)
 # diracJob.setCPUTime(500)
 diracJob.setName('OutputSandboxTest')
+diracJob.setInputSandbox(['test.sh'])
 diracJob.setExecutable(executable, arguments='test.sh', logFile=logfile)
-diracJob.setOutputSandbox(['env.out', stdout, stderr])
+diracJob.setOutputSandbox([stdout, stderr, logfile])
+diracJob.setOutputData(['env.out'], outputSE='CA-TRIUMF-T2K1-disk', outputPath='LFN:/grid/t2k.org/nd280/contrib/hogan')
 
 print 'job being submitted...'
 dirac = Dirac()

@@ -1,0 +1,45 @@
+[
+  Executable = "$DIRACROOT/scripts/dirac-jobexec";
+  JobName = "OutputSandboxTest";
+  Priority = 1;
+  JobRequirements =
+  [
+    OwnerDN = "/DC=org/DC=opensciencegrid/O=Open Science Grid/OU=People/CN=GIVENNAME FAMILYNAME 9999";
+    VirtualOrganization = "t2k.org";
+    Setup = "GridPP";
+    CPUTime = 86400;
+    OwnerGroup = "t2k.org_production";
+    UserPriority = 1;
+    Platforms = "EL6";
+    SubmitPools = "Pool_t2k.org";
+    JobTypes = "User";
+  ];
+  Arguments = "jobDescription.xml -o LogLevel=info";
+  VirtualOrganization = "t2k.org";
+  LogLevel = "info";
+  InputSandbox =
+  {
+    "test.sh",
+    "SB:GridPPSandboxSE|/SandBox/g/givenname.familyname.t2k.org_production/44e/c8e/44ec8e7fd91bc320e08f0519fcf7cabb.tar.bz2"
+  };
+  SubmitPools = "Pool_t2k.org";
+  OwnerName = "givenname.familyname";
+  StdOutput = "std.out";
+  JobType = "User";
+  DIRACSetup = "GridPP";
+  StdError = "std.err";
+  CPUTime = 86400;
+  OwnerDN = "/DC=org/DC=opensciencegrid/O=Open Science Grid/OU=People/CN=GIVENNAME FAMILYNAME 9999";
+  JobGroup = "t2k.org";
+  OutputSandbox =
+  {
+    "std.out",
+    "std.err",
+  };
+  JobID = 8746412;
+  Origin = "DIRAC";
+  Site = "ANY";
+  OwnerGroup = "t2k.org_production";
+  Owner = "givenname.familyname";
+  Platform = "EL6";
+]

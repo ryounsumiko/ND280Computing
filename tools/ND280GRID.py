@@ -83,6 +83,12 @@ def GetLiveSERoots():
     return SE.GetLiveSERoots()
 
 
+def GetDefaultSE():
+    """ Get the default SE to store output on, defaults to RAL.
+    Also checks if the default SE is in the list of se_roots """
+    return SE.GetDefaultSE()
+
+
 def GetListOfSEs():
     """ Get list of Storage Elements """
     return SE.GetListOfSEs()

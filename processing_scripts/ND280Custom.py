@@ -17,10 +17,22 @@ diracJob = Job('', stdout, stderr)
 diracJob.setName('ND280Custom')
 # set the program/executable, arguments, logFile, ...
 diracJob.setExecutable(exe, arguments=args, logFile=logfile)
-# set the job length,5 hours
-diracJob.setCPUTime(18000)
+# set the job length
+diracJob.setCPUTime(3600)
 # this file is needed remotely for the job
-diracJob.setInputSandbox(['../tools/*py', '../custom_parameters/*DAT'])
+diracJob.setInputSandbox(
+    [
+        '../custom_parameters/P0DMOD.PARAMETERS.DAT',
+        'RunCustom.py',
+        'P0DCalibProcess.py',
+        '../tools/ND280Configs.py',
+        '../tools/ND280GRID.py',
+        '../tools/ND280Job.py',
+        '../tools/ND280Software.py',
+        '../tools/pexpect.py',
+        '../tools/StorageElement.py'
+    ]
+)
 # these files are created by the job regardless of the executable
 diracJob.setOutputSandbox([stdout, stderr, logfile])
 """

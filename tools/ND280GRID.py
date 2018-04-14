@@ -2229,14 +2229,18 @@ class ND280JDL(object):
         self.jobtype = jobtype
         self.evtype = evtype
         self.options = options
-        self.cfgfile = self.options['cfgfile']
+        self.cfgfile = None
+        self.regexp = None
+        self.queuelim = None
+        if 'cfgfile' in self.options.keys():
+            self.cfgfile = self.options['cfgfile']
         self.queuelim = '512'
-        if self.options['regexp']:
+        if 'regexp' in self.options.keys():
             self.regexp = str(self.options['regexp'])
-        if self.options['queuelim']:
+        if 'queuelim' in self.options.keys():
             self.queuelim = str(self.options['queuelim'])
         if self.input.filetype is 'r' or self.input.filetype is 'p':
-            if not self.options['trigger']:
+            if 'trigger' not in self.options.keys():
                 raise self.Error('The file ' + self.input.filename + ' is a \
 raw data file, please specify the trigger type via the options[\'trigger\']')
             else:

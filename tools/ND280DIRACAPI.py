@@ -7,9 +7,10 @@ from os import getenv
 from StorageElement import units
 import ND280GRID
 import ND280Job
+from ND280Computing import NONRUNND280JOBS
 
 
-class ND280DIRACProcess(ND280Job.ND280Process):
+class ND280DIRACProcess(object):
     """The ND280 process that instead uses the DIRAC
        API to describe the process
     """
@@ -18,35 +19,30 @@ class ND280DIRACProcess(ND280Job.ND280Process):
         """an internal class for errors"""
         pass
 
-    def __init__(self, nd280ver, input, jobtype, evtype='', modules='',
-                 config='', dbtime='', fmem=20971520, vmem=4194304,
-                 tlim=86400):
-        super(ND280DIRACProcess, self).__init__(nd280ver, input, jobtype,
-                                                evtype, modules, config,
-                                                dbtime, fmem, vmem, tlim)
-        if type(input) is str:
-            self.input = ND280DIRACJobDescription(input)
-        else:
-            self.input = None
+    def __init__(self, nd280ver, jobtype, options={}):
+        self.job_descript = None
+        self.options = dict()
 
-        # memory usage converter
-        self.units = units(1)  # 1 = 1 kB
+        defaults =
+                {
+                    'CPUTime': 86400,
+                    # TODO Below not suppported by DIRAC v6r19p10
+                    # TODO Check Supported API functionality for newer versions
+                    'Memory': 20971520,
+                    'VMemory':4194304
+                }
 
-        # overly protective check
-        if type(self.input) is ND280DIRACJobDescription:
-            if type(tlim) is int:
-                self.input.options['CPUTime'] = tlim
-            # TODO Not suppported by DIRAC v6r19p10
-            # TODO Check Supported API functionality for newer versions
-            if type(fmem) is int:
-                self.input.options['Memory'] = fmem * self.units.kGB
-            # TODO Not suppported by DIRAC v6r19p10
-            # TODO Check Supported API functionality for newer versions
-            if type(vmem) is int:
-                self.input.options['VMemory'] = vmem * self.units.kGB
+        # set defaults first
+        for key, value in defaults.iteritems():
+            self.options[key] = value
+        # now set what inputs
+        for key, value in options.iteritems():
+            self.options[key] = value
+
+        self.input = ND280DIRACJobDescription(nd280ver, jobtype, self.options)
 
 
-class ND280DIRACJobDescription(ND280GRID.ND280JDL):
+class ND280DIRACJobDescription(object):
     """a class to write a DIRAC python script that gives the
     JDL equivalent information"""
 
@@ -54,11 +50,26 @@ class ND280DIRACJobDescription(ND280GRID.ND280JDL):
         """an internal class for errors"""
         pass
 
-    def __init__(self, nd280ver, input, jobtype, evtype='', options={}):
-        # inherited constructor
-        super(ND280DIRACJobDescription, self).__init__(nd280ver, input,
-                                                       jobtype, evtype, options)
-        self.scriptname = self.jdlname
+    def __init__(self, nd280ver, jobtype, options={}):
+        self.script_name = str()
+        self.SetupDIRACAPIInfo()
+
+
+    def SetupDIRACAPIInfo(self):
+        """ Create a Raw data or MC processing jdl file.
+        The one and only argument is the event type to
+        process: spill OR cosmic trigger
+        """
+
+        self.script_name = 'ND280' + self.jobtype
+        # Don't add trigger to JDL for non runND280 jobs
+        if self.jobtype not in NONRUNND280JOBS:
+            self.script_name += '_' + str(self.options['trigger'])
+        self.script_name += '_' + self.nd280ver
+
+        return 0
+
+
 
     def CreateDIRACAPIFile(self, dir=''):
         """let DIRAC API handle creating the JDL info"""

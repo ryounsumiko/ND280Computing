@@ -138,7 +138,7 @@ for a_file in filelist:
         dirac_script = '%s.py' % dirac_proc.jd.scriptname
         if os.path.isfile(dirac_script):
             os.system('rm -f %s' % dirac_script)
-        dirac_proc.jd.jdCreateDIRACAPIFile()
+        dirac_proc.jd.CreateDIRACAPIFile()
         if os.path.isfile(dirac_script):
             command = '/usr/bin/env python2 %s' % (dirac_script)
             os.system(command)

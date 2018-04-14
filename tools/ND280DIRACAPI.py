@@ -64,6 +64,7 @@ class ND280DIRACJobDescription(object):
         self.executable = executable
         self.argument = argument
         self.options = options
+        self.cfgfile = None
         self.SetupDIRACAPIInfo()
 
     def SetupDIRACAPIInfo(self):
@@ -132,15 +133,15 @@ logFile=\"%s.log\"\n' % (self.executable, self.argument, self.scriptname))
 
             # submit the job
             scriptfile.write('print \"submitting job %s\"\n' % (self.scriptname))
-            scriptfile.write('dirac = Dirac()')
-            scriptfile.write('result = dirac.submit(diracJob)')
-            scriptfile.write('print \"Submission Result: \", result')
+            scriptfile.write('dirac = Dirac()\n')
+            scriptfile.write('result = dirac.submit(diracJob)\n')
+            scriptfile.write('print \"Submission Result: \", result\n')
 
             # write a job ID (JID) file for DIRAC to read, user to know JID
-            scriptfile.write('try:')
-            scriptfile.write('    jid = ND280DIRACAPI.GetJobIDFromSubmit(result)')
+            scriptfile.write('try:\n')
+            scriptfile.write('    jid = ND280DIRACAPI.GetJobIDFromSubmit(result)\n')
             scriptfile.write('    if jid is not \"-1\":\n')
-            scriptfile.write('        jid_file = open(\"%s.jid\", \"w\")' % (self.scriptname))
+            scriptfile.write('        jid_file = open(\"%s.jid\", \"w\")\n' % (self.scriptname))
             scriptfile.write('        jid_file.write(jid)\n')
             scriptfile.write('        jid_file.close()\n')
             scriptfile.write('    else:\n')

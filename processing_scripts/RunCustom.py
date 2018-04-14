@@ -141,7 +141,9 @@ for a_file in filelist:
         dirac_proc.jd.CreateDIRACAPIFile()
         if os.path.isfile(dirac_script):
             command = '/usr/bin/env python2 %s' % (dirac_script)
-            os.system(command)
+            print command
+            if not options.test:
+                os.system(command)
             counter += 1
             # Give the wms some time
             # sleep(ND280Computing.status_wait_times.kJobSubmit)

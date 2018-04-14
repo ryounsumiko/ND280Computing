@@ -5,9 +5,9 @@ Script.parseCommandLine()
 from DIRAC.Interfaces.API.Dirac import Dirac
 from DIRAC.Interfaces.API.Job import Job
 
-raw = 'lfn:/grid/t2k.org/nd280/raw/ND280/ND280/00014000_00014999/nd280_00014000_0000.daq.mid.gz'
-exe = '/home/mhogan/software/ND280Computing/processing_scripts/P0DCalibProcess.py'
-args = '-v v12r15 -i %s' % raw
+raw = '/grid/t2k.org/nd280/raw/ND280/ND280/00014000_00014999/nd280_00014000_0000.daq.mid.gz'
+exe = 'P0DCalibProcess.py'
+args = '-v v11r31 -i lfn:%s' % raw
 stdout = 'std.out'
 stderr = 'std.err'
 logfile = 'ND280Custom.log'
@@ -16,22 +16,12 @@ environmentDict =\
     {
         'VO_T2K_ORG_SW_DIR': '/cvmfs/t2k.egi.eu'
     }
-# these files are larger than 10 MB
-inputData =\
-    [
-        raw
-    ]
-outputData =\
-    [
-        'LFN:*root'
-    ]
 # this file is needed remotely for the job
 inputSandbox =\
     [
         exe,
         "../custom_parameters/P0DMOD.PARAMETERS.DAT",
         "RunCustom.py",
-        "P0DCalibProcess.py",
         "../tools/ND280Computing.py",
         "../tools/ND280Configs.py",
         "../tools/ND280GRID.py",
@@ -60,17 +50,9 @@ diracJob.setExecutable(exe, arguments=args, logFile=logfile)
 # set the job length
 diracJob.setCPUTime(3600)
 
-diracJob.setInputSandbox(inputSandbox)
 diracJob.setExecutionEnv(environmentDict)
-diracJob.setInputData(inputData)
+diracJob.setInputSandbox(inputSandbox)
 diracJob.setOutputSandbox(outputSandbox)
-
-"""
-Output data is written to / <VO> / user / <initial> / <username>
-so the full path of output data in this example is
-/<VO>/user/<initial>/<username>/tests
-"""
-diracJob.setOutputData(outputData, outputSE='CA-TRIUMF-T2K1-disk', outputPath='tests')
 
 print 'job being submitted...'
 dirac = Dirac()

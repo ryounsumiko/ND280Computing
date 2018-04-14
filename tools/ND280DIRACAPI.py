@@ -56,7 +56,7 @@ class ND280DIRACJobDescription(ND280GRID.ND280JDL):
 
     def __init__(self, nd280ver, input, jobtype, evtype='', options={}):
         # inherited constructor
-        super(ND280DIRACJobDescription, self).__init__(self, nd280ver, input,
+        super(ND280DIRACJobDescription, self).__init__(nd280ver, input,
                                                        jobtype, evtype, options)
         self.scriptname = self.jdlname
 

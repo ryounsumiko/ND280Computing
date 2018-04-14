@@ -2,11 +2,9 @@
 """since the DIRAC API creates a JDL file at submission,
 these classes help facilitate creating job scripts
 """
-
+import os
 from os import getenv
-from StorageElement import units
 import ND280GRID
-import ND280Job
 from ND280Computing import NONRUNND280JOBS
 
 
@@ -19,18 +17,17 @@ class ND280DIRACProcess(object):
         """an internal class for errors"""
         pass
 
-    def __init__(self, nd280ver, jobtype, options={}):
+    def __init__(self, nd280_filename, nd280ver, jobtype, options={}):
         self.job_descript = None
         self.options = dict()
 
-        defaults =
-                {
-                    'CPUTime': 86400,
-                    # TODO Below not suppported by DIRAC v6r19p10
-                    # TODO Check Supported API functionality for newer versions
-                    'Memory': 20971520,
-                    'VMemory':4194304
-                }
+        defaults = {
+                       'CPUTime': 86400,
+                       # TODO Below not suppported by DIRAC v6r19p10
+                       # TODO Check Supported API functionality for newer versions
+                       'Memory': 20971520,
+                       'VMemory': 4194304
+                   }
 
         # set defaults first
         for key, value in defaults.iteritems():
@@ -38,8 +35,8 @@ class ND280DIRACProcess(object):
         # now set what inputs
         for key, value in options.iteritems():
             self.options[key] = value
-
-        self.input = ND280DIRACJobDescription(nd280ver, jobtype, self.options)
+        self.nd280_filename = nd280_filename
+        self.input = ND280DIRACJobDescription(nd280ver, nd280_filename, jobtype, self.options)
 
 
 class ND280DIRACJobDescription(object):
@@ -50,10 +47,12 @@ class ND280DIRACJobDescription(object):
         """an internal class for errors"""
         pass
 
-    def __init__(self, nd280ver, jobtype, options={}):
-        self.script_name = str()
+    def __init__(self, nd280_filename, nd280ver, jobtype, options={}):
+        self.scriptname = str()
+        self.nd280_file = ND280GRID.ND280File(nd280_filename)
+        self.nd280ver = nd280ver
+        self.jobtype = jobtype
         self.SetupDIRACAPIInfo()
-
 
     def SetupDIRACAPIInfo(self):
         """ Create a Raw data or MC processing jdl file.
@@ -61,22 +60,23 @@ class ND280DIRACJobDescription(object):
         process: spill OR cosmic trigger
         """
 
-        self.script_name = 'ND280' + self.jobtype
+        self.scriptname = 'ND280' + self.jobtype
         # Don't add trigger to JDL for non runND280 jobs
         if self.jobtype not in NONRUNND280JOBS:
-            self.script_name += '_' + str(self.options['trigger'])
-        self.script_name += '_' + self.nd280ver
-
+            if 'trigger' in self.options.keys():
+                self.scriptname += '_' + str(self.options['trigger'])
+        run_num = self.nd280_file.GetRunNumber()
+        run_subnum = self.nd280_file.GetSubRunNumber()
+        file_descriptors = [self.nd280ver, str(run_num), str(run_subnum)]
+        self.scriptname += '_'.join(file_descriptors)
         return 0
-
-
 
     def CreateDIRACAPIFile(self, dir=''):
         """let DIRAC API handle creating the JDL info"""
         scriptfile = None
         try:
             if dir:
-                self.scriptname = dir + '/' + self.scriptname
+                self.scriptname = os.path.join(dir, self.scriptname)
             scriptfile = open('%s.py' % (self.scriptname), "w")
 
             # environment

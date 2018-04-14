@@ -14,7 +14,7 @@ import sys
 from time import sleep
 
 from ND280GRID import ND280File
-from ND280DIRACAPI import ND280DIRACJobDescription as DIRACJD
+from ND280DIRACAPI import ND280DIRACProcess as DIRACProcess
 
 # usage = 'usage: %prog [options]'
 parser = optparse.OptionParser()
@@ -133,13 +133,14 @@ for a_file in filelist:
     jdlbasename = '_'.join(['ND280Custom', nd280ver, runnum, subrunnum])
 
     if options.dirac:
-        dirac_jd = DIRACJD(a_file, nd280ver, 'Custom')
-        script_name = '%s.py' % jdlbasename
-        if os.path.isfile(script_name):
-            os.system('rm -f %s' % script_name)
-        dirac_jd.CreateDIRACAPIFile()
-        if os.path.isfile(script_name):
-            command = '/usr/bin/env python2 %s' % (script_name)
+        dirac_proc = DIRACProcess(a_file, nd280ver, 'Custom',
+                                  execfile, arglist)
+        dirac_script = '%s.py' % dirac_proc.jd.scriptname
+        if os.path.isfile(dirac_script):
+            os.system('rm -f %s' % dirac_script)
+        dirac_proc.jd.jdCreateDIRACAPIFile()
+        if os.path.isfile(dirac_script):
+            command = '/usr/bin/env python2 %s' % (dirac_script)
             os.system(command)
             counter += 1
             # Give the wms some time

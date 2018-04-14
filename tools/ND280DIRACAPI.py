@@ -9,16 +9,20 @@ from ND280Computing import NONRUNND280JOBS
 
 
 class ND280DIRACProcess(object):
-    """The ND280 process that instead uses the DIRAC
-       API to describe the process
+    """The ND280 process that uses the DIRAC
+       API to structure the JDL. Provides more
+       functionality to add options
     """
 
     class Error(Exception):
         """an internal class for errors"""
         pass
 
-    def __init__(self, nd280_filename, nd280ver, jobtype, options={}):
+    def __init__(self, nd280_filename, nd280ver, jobtype,
+                 executable, argument, options={}):
         self.job_descript = None
+        self.executable = executable
+        self.argument = argument
         self.options = dict()
 
         defaults = {
@@ -36,22 +40,30 @@ class ND280DIRACProcess(object):
         for key, value in options.iteritems():
             self.options[key] = value
         self.nd280_filename = nd280_filename
-        self.input = ND280DIRACJobDescription(nd280ver, nd280_filename, jobtype, self.options)
+        # jd stands for job description
+        self.jd = ND280DIRACJobDescription(nd280ver, nd280_filename, jobtype,
+                                           self.executable, self.argument,
+                                           self.options)
 
 
 class ND280DIRACJobDescription(object):
-    """a class to write a DIRAC python script that gives the
-    JDL equivalent information"""
+    """A class to write a DIRAC python script that gives the
+       JDL equivalent information
+    """
 
     class Error(Exception):
         """an internal class for errors"""
         pass
 
-    def __init__(self, nd280_filename, nd280ver, jobtype, options={}):
+    def __init__(self, nd280_filename, nd280ver, jobtype,
+                 executable, argument, options={}):
         self.scriptname = str()
         self.nd280_file = ND280GRID.ND280File(nd280_filename)
         self.nd280ver = nd280ver
         self.jobtype = jobtype
+        self.executable = executable
+        self.argument = argument
+        self.options = options
         self.SetupDIRACAPIInfo()
 
     def SetupDIRACAPIInfo(self):
@@ -69,6 +81,7 @@ class ND280DIRACJobDescription(object):
         run_subnum = self.nd280_file.GetSubRunNumber()
         file_descriptors = [self.nd280ver, str(run_num), str(run_subnum)]
         self.scriptname += '_'.join(file_descriptors)
+
         return 0
 
     def CreateDIRACAPIFile(self, dir=''):

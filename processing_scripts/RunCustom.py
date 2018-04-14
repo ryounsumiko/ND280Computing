@@ -14,6 +14,8 @@ import sys
 from time import sleep
 
 from ND280GRID import ND280File
+from ND280DIRACAPI import ND280DIRACJobDescription as DIRACJD
+import ND280Computing
 
 # usage = 'usage: %prog [options]'
 parser = optparse.OptionParser()
@@ -109,13 +111,14 @@ if optargs:
 if options.useTestDB:
     arglist += ' --useTestDB '
 
-# Count the number of jos submitted
+# Count the number of jobs submitted
 counter = 0
 
 # Loop over the list of files to process
 for a_file in filelist:
 
     # Create file instance
+    infile = None
     try:
         print a_file
         infile = ND280File(a_file)
@@ -125,75 +128,87 @@ for a_file in filelist:
         continue
 
     print 'Done making infile', a_file
+
     runnum = str(infile.GetRunNumber())
     subrunnum = str(infile.GetSubRunNumber())
     jdlbasename = '_'.join(['ND280Custom', nd280ver, runnum, subrunnum])
-    jdlname = '%s.jdl' % jdlbasename
-    jidname = '%s.jid' % jdlbasename
-
-    # Open JDL file for writing
-    jdlfile = open(jdlname, "w")
-
-    # Write the custom JDL (should use ND280JDL here -
-    # but it is presently only capable of handling
-    # one extra file for the input sanbox)
-    jdlfile.write('Executable = "%s";\n' % (execfile))
-    jdlfile.write('Arguments = "%s %s";\n' % (arglist, a_file))
-    jdlfile.write('InputSandbox = {"../tools/*.py",\
-"%s","../custom_parameters/*.DAT"' % (execfile))
-    if options.inputs:
-        for option_i in options.inputs.split('/'):
-            jdlfile.write(',"%s"' % (option_i))
-    jdlfile.write('};\n')
-    stdout = 'ND280Custom.out'
-    stderr = 'ND280Custom.err'
-    jdlfile.write('StdOutput = "%s";\n' % stdout)
-    jdlfile.write('StdError = "%s";\n' % stderr)
-    jdlfile.write('OutputSandbox = {"%s", "%s"};\n' % (stdout, stderr))
-    if not options.nodatareq:
-        jdlfile.write('DataRequirements = {\n')
-        jdlfile.write('[\n')
-        jdlfile.write('DataCatalogType = "DLI";\n')
-        jdlfile.write('DataCatalog = "'+os.getenv('LFC_HOST')+':8085/";\n')
-        jdlfile.write('InputData = {"%s"};\n' % (a_file))
-        jdlfile.write(']\n')
-        jdlfile.write('};\n')
-        jdlfile.write('DataAccessProtocol = "gsiftp";\n')
-    jdlfile.write('VirtualOrganisation = "t2k.org";\n')
-    jdlfile.write('Requirements = Member("VO-t2k.org-ND280-\
-%s",other.GlueHostApplicationSoftwareRunTimeEnvironment) ' % (nd280ver))
-    jdlfile.write(' && other.GlueCEPolicyMaxCPUTime > 600 \
-&& other.GlueHostMainMemoryRAMSize >= 512; \n')
-
-    if os.getenv('MYPROXY_SERVER'):
-        my_proxy = os.getenv('MYPROXY_SERVER')
-        jdlfile.write('MyProxyServer = "%s";' % my_proxy)
-    else:
-        print 'Warning MyProxyServer attribute undefined!'
-
-    jdlfile.close()
-
-    # First delete any old jid and jdl file
-    if os.path.isfile(jidname):
-        print 'jid file exists, removing'
-        fjid = open(jidname, 'r')
-        flines = fjid.readlines()
-        joblink = flines[1]
-        jar = joblink.split('/')
-        jobout = jar[-1]
-        jout = outdir + username + '_' + jobout
-        if os.path.isfile(jout):
-            print 'output file exists, removing'
-            outdel = getstatusoutput('rm -rf ' + jout)
-            if outdel[0] != 0:
-                print 'Error: rm -rf ' + jout + ' failed'
-        outdel = getstatusoutput('rm -rf ' + jidname)
-        if outdel[0] != 0:
-            print 'Error: rm -rf ' + jidname + ' failed'
 
     if options.dirac:
-        command = 'dirac-wms-job-submit -f %s %s ' % (jidname, jdlname)
+        dirac_jd = DIRACJD(nd280ver, a_file, 'Custom')
+        script_name = '%s.py' % jdlbasename
+        if os.path.isfile(script_name):
+            os.system('rm -f %s' % script_name)
+        dirac_jd.CreateDIRACAPIFile()
+        if os.path.isfile(script_name):
+            command = '/usr/bin/env python2 %s' % (script_name)
+            os.system(command)
+            counter += 1
+            # Give the wms some time
+            sleep(ND280Computing.status_wait_times.kJobSubmit)
     else:
+
+        jdlname = '%s.jdl' % jdlbasename
+        jidname = '%s.jid' % jdlbasename
+        # Open JDL file for writing
+        jdlfile = open(jdlname, "w")
+
+        # Write the custom JDL (should use ND280JDL here -
+        # but it is presently only capable of handling
+        # one extra file for the input sanbox)
+        jdlfile.write('Executable = "%s";\n' % (execfile))
+        jdlfile.write('Arguments = "%s %s";\n' % (arglist, a_file))
+        jdlfile.write('InputSandbox = {"../tools/*.py",\
+"%s","../custom_parameters/*.DAT"' % (execfile))
+        if options.inputs:
+            for option_i in options.inputs.split('/'):
+                jdlfile.write(',"%s"' % (option_i))
+        jdlfile.write('};\n')
+        stdout = 'ND280Custom.out'
+        stderr = 'ND280Custom.err'
+        jdlfile.write('StdOutput = "%s";\n' % stdout)
+        jdlfile.write('StdError = "%s";\n' % stderr)
+        jdlfile.write('OutputSandbox = {"%s", "%s"};\n' % (stdout, stderr))
+        if not options.nodatareq:
+            jdlfile.write('DataRequirements = {\n')
+            jdlfile.write('[\n')
+            jdlfile.write('DataCatalogType = "DLI";\n')
+            jdlfile.write('DataCatalog = "'+os.getenv('LFC_HOST')+':8085/";\n')
+            jdlfile.write('InputData = {"%s"};\n' % (a_file))
+            jdlfile.write(']\n')
+            jdlfile.write('};\n')
+            jdlfile.write('DataAccessProtocol = "gsiftp";\n')
+        jdlfile.write('VirtualOrganisation = "t2k.org";\n')
+        jdlfile.write('Requirements = Member("VO-t2k.org-ND280-\
+%s",other.GlueHostApplicationSoftwareRunTimeEnvironment) ' % (nd280ver))
+        jdlfile.write(' && other.GlueCEPolicyMaxCPUTime > 600 \
+&& other.GlueHostMainMemoryRAMSize >= 512; \n')
+
+        if os.getenv('MYPROXY_SERVER'):
+            my_proxy = os.getenv('MYPROXY_SERVER')
+            jdlfile.write('MyProxyServer = "%s";' % my_proxy)
+        else:
+            print 'Warning MyProxyServer attribute undefined!'
+
+        jdlfile.close()
+
+        # First delete any old jid and jdl file
+        if os.path.isfile(jidname):
+            print 'jid file exists, removing'
+            fjid = open(jidname, 'r')
+            flines = fjid.readlines()
+            joblink = flines[1]
+            jar = joblink.split('/')
+            jobout = jar[-1]
+            jout = outdir + username + '_' + jobout
+            if os.path.isfile(jout):
+                print 'output file exists, removing'
+                outdel = getstatusoutput('rm -rf ' + jout)
+                if outdel[0] != 0:
+                    print 'Error: rm -rf ' + jout + ' failed'
+            outdel = getstatusoutput('rm -rf ' + jidname)
+            if outdel[0] != 0:
+                print 'Error: rm -rf ' + jidname + ' failed'
+
         command = 'glite-wms-job-submit'
         if delegation:
             command += ' -d ' + delegation
@@ -204,33 +219,33 @@ for a_file in filelist:
             command += ' ' + jdlname
         else:
             command += ' -r ' + resource + ' ' + jdlname
-    print command
+        print command
 
-    ii = 0
-    trials = 0
-    while ii < 1 and trials < 10:
+        ii = 0
+        trials = 0
+        while ii < 1 and trials < 10:
 
-        if os.path.isfile(jidname):
-            print 'jid written, do not submit again'
-            break
+            if os.path.isfile(jidname):
+                print 'jid written, do not submit again'
+                break
 
-        if options.test:
-            print 'TEST RUN'
-            break
+            if options.test:
+                print 'TEST RUN'
+                break
 
-        child = pexpect.spawn(command, timeout=30)
-        ii = child.expect([pexpect.TIMEOUT, pexpect.EOF])
+            child = pexpect.spawn(command, timeout=30)
+            ii = child.expect([pexpect.TIMEOUT, pexpect.EOF])
 
-        if ii == 0:
-            print 'Retrying ...'
-            trials += 1
-        else:
-            print child.before
+            if ii == 0:
+                print 'Retrying ...'
+                trials += 1
+            else:
+                print child.before
 
-        # Give the wms some time
-        sleep(2)
+            # Give the wms some time
+            sleep(200)
 
-    counter += 1
+        counter += 1
 
 print '--------------------------------'
 print 'Submitted ' + str(counter) + ' jobs'

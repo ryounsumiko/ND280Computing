@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python2
 
 """
 A bunch of handy commands for use with the ND280 software
@@ -498,7 +498,7 @@ class ND280Process(ND280Job):
 
     def __init__(self, nd280ver, input, jobtype, evtype='', modules='', config='', dbtime='', fmem=20971520, vmem=4194304, tlim=86400):
         super(ND280Process, self).__init__(nd280ver)
-        if type(input)==str:
+        if type(input) is str:
             self.input=ND280File(input)
         else:
             self.input=input

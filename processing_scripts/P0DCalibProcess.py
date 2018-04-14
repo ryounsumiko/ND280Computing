@@ -22,7 +22,6 @@ from os.path import join
 import sys
 import random
 from time import sleep
-import ND280GRID
 from ND280GRID import ND280File
 from ND280Job import ND280Process
 import StorageElement as SE
@@ -67,32 +66,32 @@ def main(argv):
     ########################################################################
 
     # print environment variables
-    eightyPounds = str()
+    lotsOfPounds = str()
     for index in range(0, 80):
-        eightyPounds += '#'
+        lotsOfPounds += '#'
 
     print 'Environment variables'
-    print eightyPounds
+    print lotsOfPounds
     os.system('env')
-    print eightyPounds
+    print lotsOfPounds
 
     # Delay processing by random time to avoid database blocking
     # rt = 200. * random.random()
     rt = 2. * random.random()
-    print eightyPounds
+    print lotsOfPounds
     print 'Sleeping ' + str(rt) + ' seconds'
-    print eightyPounds
+    print lotsOfPounds
     sleep(rt)
 
-    print eightyPounds
+    print lotsOfPounds
     print 'INPUT FILE: ' + usr_input
-    print eightyPounds
+    print lotsOfPounds
     input_file = ND280File(usr_input)
 
     # directory suffix added to each stage name
     dirsuff = '_p0dmod'
 
-    print eightyPounds
+    print lotsOfPounds
     # Create Job object
     print 'Job object'
     # max file size
@@ -107,7 +106,7 @@ def main(argv):
     print 'Max memory = ' + str(vmem / (1024.0 * 1024.0)) + 'GiB'
     print 'Max walltime = ' + str(tlim / 3600.) + 'hr'
     print 'DB time = ' + dbtime
-    print eightyPounds
+    print lotsOfPounds
 
     # define the processing
     evtype = 'spill'
@@ -115,11 +114,11 @@ def main(argv):
     modulelist = list()
     if modules:
         modulelist = modules.split(",")
-        print eightyPounds
+        print lotsOfPounds
         print 'module list'
         print modulelist
-        print eightyPounds
-    config = '[calibrate],par_override = P0DMOD.PARAMETERS.DAT'
+        print lotsOfPounds
+    config = '[calibrate], par_override = P0DMOD.PARAMETERS.DAT'
     nd280_proc = ND280Process(nd280ver, input_file, "Raw", evtype,
                               modulelist, config, dbtime, fmem, vmem, tlim)
     # use the test DataBase?
@@ -140,52 +139,52 @@ def main(argv):
     dirlist = copyfiles
 
     # Test that we are able to copy a test file
-    print eightyPounds
+    print lotsOfPounds
     print 'Testing copy'
     nd280_proc.TestCopy(path_prot, path_end, dirsuff, default_SE)
-    print eightyPounds
+    print lotsOfPounds
 
     # Run the Job
     # print 'Running quick job'
     # nd280_proc.SetQuick()
 
     # calibration
-    print eightyPounds
+    print lotsOfPounds
     print 'ND280Process.RunRaw()'
     nd280_proc.RunRaw()
-    print eightyPounds
+    print lotsOfPounds
 
     # reconstruction
-    print eightyPounds
+    print lotsOfPounds
     print 'ND280Process.RunP0DRecon()'
     nd280_proc.RunP0DRecon()
-    print eightyPounds
+    print lotsOfPounds
 
     # sand muon selection
-    print eightyPounds
+    print lotsOfPounds
     print 'ND280Process.RunP0DControlSample()'
     nd280_proc.RunP0DControlSample()
-    print eightyPounds
+    print lotsOfPounds
 
     # oaAanalysis
-    print eightyPounds
+    print lotsOfPounds
     print 'ND280Process.RunOAAnalysis()'
     nd280_proc.RunOAAnalysis()
-    print eightyPounds
+    print lotsOfPounds
 
-    print eightyPounds
+    print lotsOfPounds
     print 'Copy ROOT files'
     nd280_proc.CopyLogFile(path_prot, path_end, dirsuff, default_SE)
-    print eightyPounds
+    print lotsOfPounds
 
-    print eightyPounds
+    print lotsOfPounds
     print 'Copy Log files'
     nd280_proc.CopyRootFiles(path_prot, path_end, dirlist, dirsuff, default_SE)
-    print eightyPounds
+    print lotsOfPounds
 
-    print eightyPounds
+    print lotsOfPounds
     print 'Finished OK'
-    print eightyPounds
+    print lotsOfPounds
     ########################################################################
     # Main Program
 

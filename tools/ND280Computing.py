@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python2
 
 from subprocess import Popen, PIPE
 
@@ -28,6 +28,7 @@ class status_wait_times(object):
     kProxyNextCheck = 6 * kMinute
     kProcessWait = 1 * kMinute
     kTimeout = 5 * kMinute
+    kJobSubmit = 2 * kMinute
 
 
 def GetListPopenCommand(command):

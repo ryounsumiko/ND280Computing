@@ -1,11 +1,52 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python2
+"""since the DIRAC API creates a JDL file at submission,
+these classes help facilitate creating job scripts
+"""
 
 from os import getenv
-import StorageElement as SE
+from StorageElement import units
 import ND280GRID
+import ND280Job
 
 
-class DIRACJOB(ND280GRID.ND280JDL):
+class ND280DIRACProcess(ND280Job.ND280Process):
+    """The ND280 process that instead uses the DIRAC
+       API to describe the process
+    """
+
+    class Error(Exception):
+        """an internal class for errors"""
+        pass
+
+    def __init__(self, nd280ver, input, jobtype, evtype='', modules='',
+                 config='', dbtime='', fmem=20971520, vmem=4194304,
+                 tlim=86400):
+        super(ND280DIRACProcess, self).__init__(nd280ver, input, jobtype,
+                                                evtype, modules, config,
+                                                dbtime, fmem, vmem, tlim)
+        if type(input) is str:
+            self.input = ND280DIRACJobDescription(input)
+        else:
+            self.input = None
+
+        # memory usage converter
+        self.units = units(1)  # 1 = 1 kB
+
+        # overly protective check
+        if type(self.input) is ND280DIRACJobDescription:
+            if type(tlim) is int:
+                self.input.options['CPUTime'] = tlim
+            # TODO Not suppported by DIRAC v6r19p10
+            # TODO Check Supported API functionality for newer versions
+            if type(fmem) is int:
+                self.input.options['Memory'] = fmem * self.units.kGB
+            # TODO Not suppported by DIRAC v6r19p10
+            # TODO Check Supported API functionality for newer versions
+            if type(vmem) is int:
+                self.input.options['VMemory'] = vmem * self.units.kGB
+
+
+class ND280DIRACJobDescription(ND280GRID.ND280JDL):
     """a class to write a DIRAC python script that gives the
     JDL equivalent information"""
 
@@ -15,112 +56,94 @@ class DIRACJOB(ND280GRID.ND280JDL):
 
     def __init__(self, nd280ver, input, jobtype, evtype='', options={}):
         # inherited constructor
-        super(DIRACJOB, self).__init__(self, nd280ver, input,
-                                       jobtype, evtype, options)
+        super(ND280DIRACJobDescription, self).__init__(self, nd280ver, input,
+                                                       jobtype, evtype, options)
         self.scriptname = self.jdlname
 
-    def CreateAPIFile(self, dir=''):
+    def CreateDIRACAPIFile(self, dir=''):
         """let DIRAC API handle creating the JDL info"""
+        scriptfile = None
         try:
             if dir:
                 self.scriptname = dir + '/' + self.scriptname
-            jdlfile = open('blank.txt', 'w')
-            scriptfile = open(self.scriptname, "w")
+            scriptfile = open('%s.py' % (self.scriptname), "w")
 
-            scriptfile.write('#!/usr/bin/env python2.7\n')
+            # environment
+            scriptfile.write('#!/usr/bin/env python2\n')
+
+            # imports
             scriptfile.write('from DIRAC.Core.Base import Script\n')
             scriptfile.write('Script.parseCommandLine()\n')
             scriptfile.write('from DIRAC.Interfaces.API.Dirac import Dirac\n')
             scriptfile.write('from DIRAC.Interfaces.API.Job import Job\n')
-            scriptfile.write('\n')
-            scriptfile.write('diracJob = Job()\n')
+            scriptfile.write('import ND280DIRACAPI\n')
+
+            scriptfile.write('diracJob = Job(\"\",\"std.out\",\"std.err\")\n')
+            # job name
             scriptfile.write('diracJob.setName(\"%s\")\n' % self.scriptname)
-            scriptfile.write('diracJob.setExecutable(\"%s\", \
-arguments=\"%s\"\n' % (self.executable, self.argument))
+            # job exe, args, and logFile
+            scriptfile.write('diracJob.setExecutable(\"%s\", arguments=\"%s\", \
+logFile=\"%s.log\"\n' % (self.executable, self.argument, self.scriptname))
 
-            # TODO test if input.LFN() has LFN in it!
-            scriptfile.write('diracJob.setInputData(\"%s\")\n' %
-                             self.input.LFN())
-            # TODO Determine if * is really accepted in sandboxes
-            # TODO Determine custom parameters path
-            scriptfile.write('diracJob.setInputSandbox([\"../tools/*py\",\
-\"../custom_parameters/*.DAT\"])\n')
-            # TODO Determine if output names and output paths are set
-            scriptfile.write('diracJob.setOutputData([\"%s\"], \"%s\", \"%s\")\
-\n' % ('*root', SE.GetDefaultSE(), '/test/path'))
-            scriptfile.write('diracJob.setOutputSandbox([\"%s\"])\
-\n' % ('*root'))
-
-            comp_path = getenv('ND280COMPUTINGROOT')
-            if not comp_path:
-                raise self.Error('Could not get\
-the ND280COMPUTINGROOT environment variable, have you executed the setup.sh?')
-
-            input_SB_string = 'InputSandbox = \
-{\"' + comp_path + '/tools/*.py\", \"' + self.executable + '\"'
+            # job input Sandbox
+            # it seems that * does not work with DIRAC v6r19p10
+            scriptfile.write('inputSandbox = [\"../tools/ND280Computing.py\", \
+\"../tools/ND280Configs.py\", \"../tools/ND280GRID.py\", \
+\"../tools/ND280Job.py\", \"../tools/ND280Software.py\", \
+\"../tools/pexpect.py\", \"../tools/StorageElement.py\", \
+\"../tools/ND280DIRACAPI.py\", \"%s\"' % (self.executable))
             if self.cfgfile:
-                input_SB_string += ', \"' + self.cfgfile + '\"'
-            for j, i in enumerate(self.inputsandbox):
-                input_SB_string += ', \"' + i + '\"'
-            input_SB_string += '};\n'
-            jdlfile.write(input_SB_string)
+                scriptfile.write(' \"%s\"', self.cfgfile)
+            scriptfile.write(']\n')
 
-            jdlfile.write('StdOutput = "' + self.stdoutput + '";\n')
-            jdlfile.write('StdError = "' + self.stderror + '";\n')
+            # job output Sandbox
+            scriptfile.write('diracJob.setOutputSandbox([\"std.out\", \
+\"std.err\", \"%s.log\"])\n' % (self.scriptname))
+            # job environmental variables
+            scriptfile.write('diracJob.setExecutionEnv({\
+\"VO_T2K_ORG_SW_DIR\": \"%s\"})\n' % (getenv('VO_T2K_ORG_SW_DIR')))
+            if 'CPUTime' in self.options.keys():
+                tlim = self.options['CPUTime']
+                scriptfile.write('diracJob.setCPUTime(%d)\n' % tlim)
 
-            output_SB_string = 'OutputSandbox = {"' + \
-                self.stdoutput + '", "' + self.stderror + '"'
-            for o in self.outputsandbox:
-                output_SB_string += ', "' + o + '"'
-            output_SB_string += '};\n'
-            jdlfile.write(output_SB_string)
+            # submit the job
+            scriptfile.write('print \"submitting job %s\"\n' % (self.scriptname))
+            scriptfile.write('dirac = Dirac()')
+            scriptfile.write('result = dirac.submit(diracJob)')
+            scriptfile.write('print \"Submission Result: \", result')
 
-            # Data Requirements for LFC InputData
-            jdlfile.write('DataRequirements = {\n[\nDataCatalogType = "DLI";\
-\nDataCatalog = "'+getenv('LFC_HOST')+':8085/";\n')
-            if self.input.alias and 'cvmfs' not in self.input.path:
-                # Should use lcg-lr to determine where data is located.
-                jdlfile.write('InputData = {"' + self.input.alias +
-                              '"};\n]\n};\n')
-            # generic LFC Data Requirements
-            else:
-                # The location of the replicas determine the resource matching
-                jdlfile.write('InputData = \
-{"lfn:/grid/t2k.org/nd280/cvmfsAccessList"};\n]\n};\n')
-            jdlfile.write('DataAccessProtocol = {"gsiftp"};\n')
+            # write a job ID (JID) file for DIRAC to read, user to know JID
+            scriptfile.write('try:')
+            scriptfile.write('    jid = ND280DIRACAPI.GetJobIDFromSubmit(result)')
+            scriptfile.write('    if jid is not \"-1\":\n')
+            scriptfile.write('        jid_file = open(\"%s.jid\", \"w\")' % (self.scriptname))
+            scriptfile.write('        jid_file.write(jid)\n')
+            scriptfile.write('        jid_file.close()\n')
+            scriptfile.write('    else:\n')
+            scriptfile.write('        print \"Unable to creaate jid file for this job:\", jobName\n')
+            scriptfile.write('except Exception as exception:\n')
+            scriptfile.write('    print str(exception)\n')
+            scriptfile.write('    print \"Unable to creaate jid file for this job:\", jobName')
+            scriptfile.close()
+        except self.Error as error:
+                print str(error)
+                print 'Unable to create job file'
+        try:
+            if scriptfile:
+                scriptfile.close()
+        except self.Error as error:
+            print str(error)
+            print 'Unable to close job file'
 
-            # VO requirements (ND280 software version etc)
-            jdlfile.write('VirtualOrganisation = \"t2k.org\";\n')
 
-            # under CVMFS s/w tags no longer work
-            # jdlfile.write('Requirements=Member(\"VO-t2k.org-ND280-' +
-            #               self.nd280ver + '\",\
-# other.GlueHostApplicationSoftwareRunTimeEnvironment)')
-
-            # Resource requirements (CPU time, RAM etc)
-            # jdlfile.write(' && other.GlueCEPolicyMaxCPUTime > 600')
-
-            jdlfile.write('Requirements = other.GlueCEPolicyMaxCPUTime > 600')
-            jdlfile.write(' && ')
-            jdlfile.write('other.GlueHostMainMemoryRAMSize >= ' +
-                          self.queuelim)
-
-            # Add regexp to requirements? (to exclude sites etc)
-            if self.options['regexp']:
-                jdlfile.write(' && '+self.regexp)
-            jdlfile.write(';\n')
-
-            # MyProxy server requirements
-            if getenv('MYPROXY_SERVER'):
-                jdlfile.write('MyProxyServer = \"' +
-                              getenv('MYPROXY_SERVER')+'\";\n')
-            else:
-                print 'Warning MyProxyServer attribute undefined!'
-
-            # Finished writing the JDL
-            jdlfile.close()
-            return self.jdlname
-        except Exception as exception:
-            print str(exception)
-            print "Could not write create the " + self.jdlname + " jdl file"
-        return ""
+def GetJobIDFromSubmit(submitResult):
+    """when the DIRAC.submit() method is called, use this
+    method to extract the JodID from the dictionary
+    example {...stuff..., 'Value': 8765031, 'JobID': 8765031}
+    """
+    jid_identifiers = ['JobID', 'Value']
+    if type(submitResult) is dict:
+        for identifier in jid_identifiers:
+            if identifier in submitResult.keys():
+                return str(submitResult[identifier]).strip()
+    return '-1'

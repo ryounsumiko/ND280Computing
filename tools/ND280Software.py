@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python2
 
 """
 A bunch of handy commands for use with the ND280 software on the grid or locally.

@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python2
 
 """
 Handy functions to make using the GRID a little more bearable.
@@ -46,7 +46,7 @@ MAX_TRANSFERS_PER_CHANNEL = 600
 """
 Number of constants and methods here are unweildy
 original SE methods defined in StorageElements, added them here for
-backward compatability
+backwards compatability
 """
 # Master dictionary containing storage elements (SE) bindings
 # FORMAT se : [root, fts2Channel, hasSpaceToken]

@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python2
 
 """Storage Elements (SE) info in one convenient location"""
 import os

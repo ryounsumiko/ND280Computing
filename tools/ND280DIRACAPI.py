@@ -41,7 +41,7 @@ class ND280DIRACProcess(object):
             self.options[key] = value
         self.nd280_filename = nd280_filename
         # jd stands for job description
-        self.jd = ND280DIRACJobDescription(nd280ver, nd280_filename, jobtype,
+        self.jd = ND280DIRACJobDescription(nd280_filename, nd280ver, jobtype,
                                            self.executable, self.argument,
                                            self.options)
 

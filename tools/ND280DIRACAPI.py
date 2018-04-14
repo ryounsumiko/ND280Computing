@@ -102,13 +102,13 @@ class ND280DIRACJobDescription(object):
             scriptfile.write('from DIRAC.Interfaces.API.Dirac import Dirac\n')
             scriptfile.write('from DIRAC.Interfaces.API.Job import Job\n')
             scriptfile.write('import ND280DIRACAPI\n')
-
+            scriptfile.write('\n')
             scriptfile.write('diracJob = Job(\"\",\"std.out\",\"std.err\")\n')
             # job name
             scriptfile.write('diracJob.setName(\"%s\")\n' % self.scriptname)
             # job exe, args, and logFile
             scriptfile.write('diracJob.setExecutable(\"%s\", arguments=\"%s\", \
-logFile=\"%s.log\"\n' % (self.executable, self.argument, self.scriptname))
+logFile = \"%s.log\"\n' % (self.executable, self.argument, self.scriptname))
 
             # job input Sandbox
             # it seems that * does not work with DIRAC v6r19p10
@@ -118,8 +118,9 @@ logFile=\"%s.log\"\n' % (self.executable, self.argument, self.scriptname))
 \"../tools/pexpect.py\", \"../tools/StorageElement.py\", \
 \"../tools/ND280DIRACAPI.py\", \"%s\"' % (self.executable))
             if self.cfgfile:
-                scriptfile.write(' \"%s\"', self.cfgfile)
+                scriptfile.write(', \"%s\"', self.cfgfile)
             scriptfile.write(']\n')
+            scriptfile.write('diracJob.setInputSandbox(inputSandbox)\n')
 
             # job output Sandbox
             scriptfile.write('diracJob.setOutputSandbox([\"std.out\", \
@@ -130,12 +131,14 @@ logFile=\"%s.log\"\n' % (self.executable, self.argument, self.scriptname))
             if 'CPUTime' in self.options.keys():
                 tlim = self.options['CPUTime']
                 scriptfile.write('diracJob.setCPUTime(%d)\n' % tlim)
+            scriptfile.write('\n')
 
             # submit the job
             scriptfile.write('print \"submitting job %s\"\n' % (self.scriptname))
             scriptfile.write('dirac = Dirac()\n')
             scriptfile.write('result = dirac.submit(diracJob)\n')
             scriptfile.write('print \"Submission Result: \", result\n')
+            scriptfile.write('\n')
 
             # write a job ID (JID) file for DIRAC to read, user to know JID
             scriptfile.write('try:\n')

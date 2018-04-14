@@ -81,7 +81,7 @@ class ND280DIRACJobDescription(object):
         run_num = self.nd280_file.GetRunNumber()
         run_subnum = self.nd280_file.GetSubRunNumber()
         file_descriptors = [self.nd280ver, str(run_num), str(run_subnum)]
-        self.scriptname += '_'.join(file_descriptors)
+        self.scriptname += '_' + '_'.join(file_descriptors)
 
         return 0
 
@@ -108,7 +108,7 @@ class ND280DIRACJobDescription(object):
             scriptfile.write('diracJob.setName(\"%s\")\n' % self.scriptname)
             # job exe, args, and logFile
             scriptfile.write('diracJob.setExecutable(\"%s\", arguments=\"%s\", \
-logFile = \"%s.log\"\n' % (self.executable, self.argument, self.scriptname))
+logFile=\"%s.log\"\n' % (self.executable, self.argument, self.scriptname))
 
             # job input Sandbox
             # it seems that * does not work with DIRAC v6r19p10

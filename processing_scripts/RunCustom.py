@@ -24,7 +24,7 @@ parser.add_option('-f', '--filename',
                   default='file.list',
                   help='File containing filenames to process')
 parser.add_option('-v', '--version',
-                  default='v12r15',
+                  default='v11r31',
                   help='Version of nd280 software to use')
 parser.add_option('-x', '--execfile',
                   default='MyProcess.py',
@@ -64,6 +64,9 @@ parser.add_option("--test", default=False,
                   help="Test run, do not submit jobs",
                   action='store_true')
 
+parser.add_option("-s", "--sandbox", default='',
+                  help="Configuration files to add to the InputSandbox, comma delimited")
+
 (options, args) = parser.parse_args()
 ##########################################################################
 
@@ -83,6 +86,7 @@ listname = options.filename
 nd280ver = str(options.version)
 optargs = options.optargs
 outdir = options.outdir
+sandbox = options.sandbox
 resource = str(options.resource)
 username = os.getenv('USER')
 
@@ -94,6 +98,10 @@ if not outdir:
     outdir += join('/', nd280ver)
 outdir += '/'
 
+if sandbox.count(',') > 0:
+    sandbox = sandbox.split(',')
+print str(sandbox)
+
 if not os.path.isdir(outdir):
     # out = getstatusoutput('mkdir ' + outdir)
     getstatusoutput('mkdir ' + outdir)
@@ -102,13 +110,16 @@ if not os.path.isdir(outdir):
 filelist = [a_file.strip() for a_file in open(listname, 'r').readlines()]
 
 # Define arguments to custom process
-arglist = '-v ' + nd280ver + ' -i '
+arglist = '-v ' + nd280ver
 if optargs:
     arglist = '%s %s' % (arglist, ' '.join(options.optargs.split(',')))
 
 # Use the test DB?
 if options.useTestDB:
     arglist += ' --useTestDB '
+
+# add the input file at the end
+arglist += ' -i ' 
 
 # Count the number of jobs submitted
 counter = 0
@@ -135,6 +146,9 @@ for a_file in filelist:
     if options.dirac:
         dirac_proc = DIRACProcess(a_file, nd280ver, 'Custom',
                                   execfile, arglist)
+        # add config files
+        if len(sandbox) > 0:
+	    dirac_proc.jd.cfgfile = sandbox
         dirac_script = '%s.py' % dirac_proc.jd.scriptname
         if os.path.isfile(dirac_script):
             os.system('rm -f %s' % dirac_script)

@@ -22,7 +22,7 @@ class ND280DIRACProcess(object):
                  executable, argument, options={}):
         self.job_descript = None
         self.executable = executable
-        self.argument = argument
+        self.argument = argument + nd280_filename
         self.options = dict()
 
         defaults = {
@@ -108,17 +108,23 @@ class ND280DIRACJobDescription(object):
             scriptfile.write('diracJob.setName(\"%s\")\n' % self.scriptname)
             # job exe, args, and logFile
             scriptfile.write('diracJob.setExecutable(\"%s\", arguments=\"%s\", \
-logFile=\"%s.log\"\n' % (self.executable, self.argument, self.scriptname))
+logFile=\"%s.log\")\n' % (self.executable, self.argument, self.scriptname))
 
             # job input Sandbox
             # it seems that * does not work with DIRAC v6r19p10
+            # TODO what would be smarter is to use python to fill a list
+            # and then populate InputSandbox that way
             scriptfile.write('inputSandbox = [\"../tools/ND280Computing.py\", \
 \"../tools/ND280Configs.py\", \"../tools/ND280GRID.py\", \
 \"../tools/ND280Job.py\", \"../tools/ND280Software.py\", \
 \"../tools/pexpect.py\", \"../tools/StorageElement.py\", \
 \"../tools/ND280DIRACAPI.py\", \"%s\"' % (self.executable))
             if self.cfgfile:
-                scriptfile.write(', \"%s\"', self.cfgfile)
+                if type(self.cfgfile) is str:
+                    scriptfile.write(', \"%s\"' % (self.cfgfile))
+                if type(self.cfgfile) is list:
+                    for cfgfile in self.cfgfile:
+                        scriptfile.write(', \"%s\"' % (cfgfile))
             scriptfile.write(']\n')
             scriptfile.write('diracJob.setInputSandbox(inputSandbox)\n')
 
@@ -145,7 +151,7 @@ logFile=\"%s.log\"\n' % (self.executable, self.argument, self.scriptname))
             scriptfile.write('    jid = ND280DIRACAPI.GetJobIDFromSubmit(result)\n')
             scriptfile.write('    if jid is not \"-1\":\n')
             scriptfile.write('        jid_file = open(\"%s.jid\", \"w\")\n' % (self.scriptname))
-            scriptfile.write('        jid_file.write(jid)\n')
+            scriptfile.write('        jid_file.write(\'%s\\n\' % jid)\n')
             scriptfile.write('        jid_file.close()\n')
             scriptfile.write('    else:\n')
             scriptfile.write('        print \"Unable to creaate jid file for this job:\", jobName\n')

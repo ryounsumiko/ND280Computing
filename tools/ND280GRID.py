@@ -416,11 +416,8 @@ def runLCG(in_command, in_timeout=status_wait_times.kTimeout, is_pexpect=True):
 
         # Regex for identifiying errors
         # (can't easily pick up the stderr pipe separately)
-        error_regex = '(?i)usage: |(?i)no such|(?i)invalid|'
-        error_regex += '(?i)illegal|(?i)error|(?i)failure|'
-        error_regex += '(?i)no accessible|(?i)unauthori[sz]ed|'
-        error_regex += '(?i)expire|(?i)exceed|(?i)fatal|(?i)abort|'
-        error_regex += '(?i)denied|(?i)no available|(?i)timed out'
+        error_regex = '(?i)usage: |(?i)no such|(?i)invalid|(?i)illegal|(?i)error|(?i)failure|(?i)no accessible|'
+        error_regex += '(?i)unauthori[sz]ed|(?i)expire|(?i)exceed|(?i)fatal|(?i)abort|(?i)denied|(?i)no available|(?i)timed out'
 
         # Try 3 times then give up
         print datetime.now()
@@ -439,8 +436,8 @@ def runLCG(in_command, in_timeout=status_wait_times.kTimeout, is_pexpect=True):
 
             # Attempt the command
             pi = child.expect([pexpect.TIMEOUT, pexpect.EOF, error_regex])
-            # print child.before
-            # print child.after
+            print 'child.before:', child.before
+            print 'child.after:', child.after
 
             # Read output from temp file stripping carriage returns
             output = list()
@@ -469,14 +466,23 @@ def runLCG(in_command, in_timeout=status_wait_times.kTimeout, is_pexpect=True):
                 continue
             if pi == 1:
                 lines = output
-                errors = []
+                errors = list()
                 break
             if pi == 2:
+                false_negative = False
+                for a_line in output:
+                    if 'Success' in a_line:
+                        false_negative = True
+                        lines = output
+                        errors = list()
+                        break
+                if false_negative:
+                  break
                 print 'ERROR!'
                 print '\n'.join(output)
                 errors.append('ERROR!'+repr(output))
                 tries += 1
-                time.sleep(min(in_timeout, 3))
+                time.sleep(min(in_timeout, 3*60))
                 continue
 
     # Don't use pexpect
@@ -505,7 +511,7 @@ def runLCG(in_command, in_timeout=status_wait_times.kTimeout, is_pexpect=True):
             if errors:
                 print 'ERROR!'
                 print '\n'.join(errors)
-                time.sleep(min(in_timeout, 3))
+                time.sleep(min(in_timeout, 3*60))
                 continue
             else:
                 break

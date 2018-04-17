@@ -25,6 +25,7 @@ from time import sleep
 from ND280GRID import ND280File
 from ND280Job import ND280Process
 import StorageElement as SE
+from ND280Computing import status_wait_times
 
 
 def main(argv):
@@ -77,7 +78,7 @@ def main(argv):
 
     # Delay processing by random time to avoid database blocking
     # rt = 200. * random.random()
-    rt = 2. * random.random()
+    rt = status_wait_times.kJobSubmit
     print lotsOfPounds
     print 'Sleeping ' + str(rt) + ' seconds'
     print lotsOfPounds
@@ -93,18 +94,22 @@ def main(argv):
 
     print lotsOfPounds
     # Create Job object
+    mem_unit = SE.units(1).kGibibyte
+    mem_unit_str = 'GiB'
+    time_unit = status_wait_times().kHour
+    time_unit_str = 'hr'
     print 'Job object'
     # max file size
-    fmem = 20*1024*1024  # 20GiB
+    fmem = 20 * mem_unit  # 20 GiB
     # max memory
-    vmem = 4*1024*1024  # 4GB
+    vmem = 4 * mem_unit  # 4 GiB
     # job time limit
-    tlim = 24*3600  # 24h
+    tlim = 24 * time_unit  # 24 hr
     dbtime = '2038-01-01'
 
-    print 'Max file size = ' + str(fmem / (1024.0 * 1024.0)) + 'GiB'
-    print 'Max memory = ' + str(vmem / (1024.0 * 1024.0)) + 'GiB'
-    print 'Max walltime = ' + str(tlim / 3600.) + 'hr'
+    print 'Max file size = ', str(fmem / mem_unit), mem_unit_str 
+    print 'Max memory = ', str(vmem / mem_unit), mem_unit_str 
+    print 'Max walltime = ', str(tlim / time_unit), time_unit_str
     print 'DB time = ' + dbtime
     print lotsOfPounds
 
@@ -118,7 +123,7 @@ def main(argv):
         print 'module list'
         print modulelist
         print lotsOfPounds
-    config = '[calibrate], par_override = P0DMOD.PARAMETERS.DAT'
+    config = '[calibrate],par_override = P0DMOD.PARAMETERS.DAT'
     nd280_proc = ND280Process(nd280ver, input_file, "Raw", evtype,
                               modulelist, config, dbtime, fmem, vmem, tlim)
     # use the test DataBase?

@@ -31,6 +31,34 @@ class status_wait_times(object):
     kJobSubmit = 2 * kMinute
 
 
+class LCG(object):
+    """lcg commands with timeouts set at start"""
+
+    def __init__(self, timeout=10*status_wait_times.kMinute):
+        self.commands = dict()
+        self.timeout = None
+
+        # new commands go here
+        self.commands['bringonline'] = 'lcg-bringonline '
+        
+        self.SetTimeouts(timeout)
+
+    def SetTimeouts(self, new_timeout):
+        """initialize commands with common timeouts"""
+        self.timeout = new_timeout
+        for key, value in self.commands.iteritems():
+            value += '--connect-timeout %d ' % (self.timeout)
+            value += '--sendreceive-timeout %d ' % (self.timeout)
+            value += '--bdii-timeout %d ' % (self.timeout)
+            value += '--srm-timeout %d ' % (self.timeout)
+            self.commands[key] = value
+
+        # new commands go here
+        self.bringonline = self.commands['bringonline']
+            
+
+
+
 def GetListPopenCommand(command):
     """submits a command with the stdin, out, and err available for printing
     return the list of lines"""

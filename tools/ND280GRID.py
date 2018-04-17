@@ -405,7 +405,7 @@ def runLCG(in_command, in_timeout=status_wait_times.kTimeout, is_pexpect=True):
 
     # Use pexpect (default)
     if is_pexpect:
-        # Use pexpect with 5 min timeout
+        # Use pexpect
         tries = 0
 
         # Temporary log file to contain stdout/stderr redirection
@@ -436,13 +436,15 @@ def runLCG(in_command, in_timeout=status_wait_times.kTimeout, is_pexpect=True):
 
             # Attempt the command
             pi = child.expect([pexpect.TIMEOUT, pexpect.EOF, error_regex])
-            print 'child.before:', child.before
-            print 'child.after:', child.after
+            # print 'child.before:', child.before
+            # print 'child.after:', child.after
 
             # Read output from temp file stripping carriage returns
             output = list()
             fout.seek(0)
             readlines = fout.readlines()
+            if type(readlines) is str:
+                readlines = readlines.split('\n')
             for line in readlines:
                 line = line.strip()
                 output.append(line)
@@ -459,31 +461,43 @@ def runLCG(in_command, in_timeout=status_wait_times.kTimeout, is_pexpect=True):
                 print str(exception)
                 traceback.print_exc()
 
+            lines = output
+
+            print 'pi =', pi
+            print 'lines =', lines
             # Possible outcomes
             if pi == 0:
                 print 'Timeout! ('+str(in_timeout)+'s)'
                 tries += 1
+                time.sleep(status_wait_times.kMinute)
                 continue
-            if pi == 1:
-                lines = output
-                errors = list()
+            # if pi == 1:
+            #     lines = output
+            #     errors = list()
+            #     break
+            # if pi == 2:
+            #     false_negative = False
+            #     print 'Possible false negative?'
+            #     if type(output) is str:
+            #         output = output.split('\n')
+            #     for a_line in output:
+            #         print 'line: ', a_line
+            #         if 'Success' in a_line:
+            #             false_negative = True
+            #             lines = output
+            #             errors = list()
+            #             break
+            #     if false_negative:
+            #       print 'It is a false negative, breaking...'
+            #       break
+            #     print 'ERROR!'
+            #     print '\n'.join(output)
+            #     errors.append('ERROR!'+repr(output))
+            #     tries += 1
+            #     time.sleep(status_wait_times.kMinute)
+            #     continue
+            else:
                 break
-            if pi == 2:
-                false_negative = False
-                for a_line in output:
-                    if 'Success' in a_line:
-                        false_negative = True
-                        lines = output
-                        errors = list()
-                        break
-                if false_negative:
-                  break
-                print 'ERROR!'
-                print '\n'.join(output)
-                errors.append('ERROR!'+repr(output))
-                tries += 1
-                time.sleep(min(in_timeout, 3*60))
-                continue
 
     # Don't use pexpect
     else:
@@ -495,7 +509,7 @@ def runLCG(in_command, in_timeout=status_wait_times.kTimeout, is_pexpect=True):
             if in_command in ('lcg-ls', 'lcg-rep', 'lcg-cr', 'lcg-cp'):
                 in_command += ' --srm-timeout '+str(in_timeout)
 
-        # Limit the execution time to 5 min
+        # Limit the execution time
         # - note this only clocks CPU time so zombie
         # processes will last forever..
         command = 'ulimit -t ' + str(max(status_wait_times.kTimeout,
@@ -1693,8 +1707,8 @@ On a GRID node? No=Don\'t Worry, yes=WTF')
                                      original_filename)
                 else:
                     if 'ONLINE' not in lines[0].split()[5]:
-                        runLCG('lcg-bringonline ' + original_filename,
-                               in_timeout=7200, is_pexpect=False)
+                        runLCG(ND280Comp.LCG(2*status_wait_times.kHour).bringonline + original_filename,
+                               in_timeout=2*status_wait_times.kHour, is_pexpect=False)
 
             # Use the FTS service 23-11-10
             return runFTSMulti(srm, original_filename, copy_filename,
@@ -1732,7 +1746,7 @@ On a GRID node? No=Don\'t Worry, yes=WTF')
 Could not determine staging of ' + original_filename)
             else:
                 if 'ONLINE' not in lines[0].split()[5]:
-                    lines, errors = runLCG('lcg-bringonline '
+                    lines, errors = runLCG(ND280Comp.LCG(status_wait_times.kHour).bringonline
                                            + original_filename,
                                            in_timeout=status_wait_times.kHour,
                                            is_pexpect=False)
@@ -1741,7 +1755,7 @@ Could not determine staging of ' + original_filename)
                         raise self.Error('\
 lcg-bringonline of '+original_filename+' threw an error')
                     if lines:
-                        if 'lcg-bringonline: Success' in lines[0]:
+                        if 'lcg-bringonline: Success' in lines[0] and 'TIMEDOUT' not in lines[0]:
                             print lines[0]
                     else:
                         lines, errors = runLCG('lcg-ls -l ' +

@@ -700,6 +700,14 @@ class ND280Config:
 
             print configfile
             configfile.close()
+            print 'DUMPING CONFIG FILE'
+            with open(self.config_filename, 'r') as fp:  
+                 line = fp.readline()
+                 cnt = 1
+                 while line:
+                     print("Line {}: {}".format(cnt, line.strip()))
+                     line = fp.readline()
+                     cnt += 1
             return self.config_filename
         except:
             configfile.close()

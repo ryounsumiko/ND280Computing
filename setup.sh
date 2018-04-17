@@ -46,8 +46,8 @@ if [ -e /cvmfs/t2k.egi.eu ]; then
 fi
 
 if [ -z "$ND280JOBS" ]; then
-    echo "Setting ND280JOBS to $HOME"
-    export ND280JOBS=$HOME
+    export ND280JOBS=$HOME/nd280_jobs
+    echo "Setting ND280JOBS to $ND280JOBS"
 fi
 
 if [ -z "$DN" ]; then

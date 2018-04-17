@@ -12,7 +12,7 @@ from os.path import join
 import pexpect
 import sys
 from time import sleep
-
+import ND280Computing
 from ND280GRID import ND280File
 from ND280DIRACAPI import ND280DIRACProcess as DIRACProcess
 
@@ -38,7 +38,7 @@ parser.add_option('-n', '--nodatareq', default=False,
 parser.add_option('-o', '--outdir', default='',
                   help='Optional output directory. \
 Can also specify using $ND280JOBS env variable. \
-Defaults to $PWD/Jobs if neither are present')
+Defaults to $ND280JOBS and then $PWD/Jobs if not present')
 
 parser.add_option('-r', '--resource', default='',
                   help='Optional CE resource to submit to')
@@ -100,6 +100,12 @@ outdir += '/'
 
 if sandbox.count(',') > 0:
     sandbox = sandbox.split(',')
+else:
+    sandbox = [sandbox]
+tmp_sandbox = list()
+for line in sandbox:
+    tmp_sandbox.append(line.strip())
+sandbox = tmp_sandbox
 print str(sandbox)
 
 if not os.path.isdir(outdir):
@@ -146,9 +152,10 @@ for a_file in filelist:
     if options.dirac:
         dirac_proc = DIRACProcess(a_file, nd280ver, 'Custom',
                                   execfile, arglist)
-        # add config files
+        # add more files to input sandbox
         if len(sandbox) > 0:
-	    dirac_proc.jd.cfgfile = sandbox
+            for in_file in sandbox:
+	        dirac_proc.jd.inputSandbox.append(in_file.strip())
         dirac_script = '%s.py' % dirac_proc.jd.scriptname
         if os.path.isfile(dirac_script):
             os.system('rm -f %s' % dirac_script)
@@ -160,7 +167,7 @@ for a_file in filelist:
                 os.system(command)
             counter += 1
             # Give the wms some time
-            # sleep(ND280Computing.status_wait_times.kJobSubmit)
+            sleep(ND280Computing.status_wait_times.kJobSubmit)
     else:
 
         jdlname = '%s.jdl' % jdlbasename
@@ -259,7 +266,7 @@ for a_file in filelist:
                 print child.before
 
             # Give the wms some time
-            sleep(200)
+            sleep(ND280Computing.status_wait_times.kJobSubmit)
 
         counter += 1
 

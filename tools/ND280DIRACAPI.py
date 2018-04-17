@@ -4,6 +4,7 @@ these classes help facilitate creating job scripts
 """
 import os
 from os import getenv
+from os.path import isfile, join
 import ND280GRID
 from ND280Computing import NONRUNND280JOBS
 
@@ -65,6 +66,8 @@ class ND280DIRACJobDescription(object):
         self.argument = argument
         self.options = options
         self.cfgfile = None
+        self.inputSandbox = list()
+        self.outputSandbox = list()
         self.SetupDIRACAPIInfo()
 
     def SetupDIRACAPIInfo(self):
@@ -83,6 +86,17 @@ class ND280DIRACJobDescription(object):
         file_descriptors = [self.nd280ver, str(run_num), str(run_subnum)]
         self.scriptname += '_' + '_'.join(file_descriptors)
 
+        # create the input and output sandboxes
+        py_files = [self.executable]
+        for fn in os.listdir('%s/tools' % getenv('ND280COMPUTINGROOT')): 
+            full_name = join('%s/tools' % getenv('ND280COMPUTINGROOT'), fn)
+            if isfile(full_name) and '.py' in fn:
+                if len(fn.split('.py')[1]) == 0:
+                    py_files.append(full_name)
+        self.inputSandbox = py_files
+        if self.cfgfile:
+            self.inputSandbox.append(self.cfgfile)
+        self.outputSandbox = ['std.out', 'std.err', '%s.log' % self.scriptname]
         return 0
 
     def CreateDIRACAPIFile(self, dir=''):
@@ -104,6 +118,7 @@ class ND280DIRACJobDescription(object):
             scriptfile.write('import ND280DIRACAPI\n')
             scriptfile.write('\n')
             scriptfile.write('diracJob = Job(\"\",\"std.out\",\"std.err\")\n')
+
             # job name
             scriptfile.write('diracJob.setName(\"%s\")\n' % self.scriptname)
             # job exe, args, and logFile
@@ -112,25 +127,18 @@ logFile=\"%s.log\")\n' % (self.executable, self.argument, self.scriptname))
 
             # job input Sandbox
             # it seems that * does not work with DIRAC v6r19p10
-            # TODO what would be smarter is to use python to fill a list
-            # and then populate InputSandbox that way
-            scriptfile.write('inputSandbox = [\"../tools/ND280Computing.py\", \
-\"../tools/ND280Configs.py\", \"../tools/ND280GRID.py\", \
-\"../tools/ND280Job.py\", \"../tools/ND280Software.py\", \
-\"../tools/pexpect.py\", \"../tools/StorageElement.py\", \
-\"../tools/ND280DIRACAPI.py\", \"%s\"' % (self.executable))
-            if self.cfgfile:
-                if type(self.cfgfile) is str:
-                    scriptfile.write(', \"%s\"' % (self.cfgfile))
-                if type(self.cfgfile) is list:
-                    for cfgfile in self.cfgfile:
-                        scriptfile.write(', \"%s\"' % (cfgfile))
+            scriptfile.write('inputSandbox = [\"%s\"' % self.inputSandbox[0])
+            for i_file in range(1, len(self.inputSandbox)):
+                scriptfile.write(', \"%s\"' % self.inputSandbox[i_file])
             scriptfile.write(']\n')
             scriptfile.write('diracJob.setInputSandbox(inputSandbox)\n')
 
             # job output Sandbox
-            scriptfile.write('diracJob.setOutputSandbox([\"std.out\", \
-\"std.err\", \"%s.log\"])\n' % (self.scriptname))
+            scriptfile.write('outputSandbox = [\"%s\"' % self.outputSandbox[0])
+            for i_file in range(1, len(self.outputSandbox)):
+                scriptfile.write(', \"%s\"' % self.outputSandbox[i_file])
+            scriptfile.write(']\n')
+            scriptfile.write('diracJob.setOutputSandbox(outputSandbox)\n')
             # job environmental variables
             scriptfile.write('diracJob.setExecutionEnv({\
 \"VO_T2K_ORG_SW_DIR\": \"%s\"})\n' % (getenv('VO_T2K_ORG_SW_DIR')))

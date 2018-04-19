@@ -21,14 +21,15 @@ diracJob.setExecutable(executable, arguments='test.sh', logFile=logfile)
 # this file is needed remotely for the job
 diracJob.setInputSandbox(['test.sh'])
 # these files are created by the job regardless of the executable
-diracJob.setOutputSandbox([stdout, stderr, logfile])
+diracJob.setOutputSandbox([stdout, stderr, logfile, 'env.out'])
 """
 Output data is written to / <VO> / user / <initial> / <username>
 so the full path of output data in this example is
 /<VO>/user/<initial>/<username>/tests
 
 """
-diracJob.setOutputData(['LFN:env.out'], outputSE='CA-TRIUMF-T2K1-disk', outputPath='tests')
+# this file will come in the output sandbox
+diracJob.setOutputData(['env.out'])
 
 print 'job being submitted...'
 dirac = Dirac()

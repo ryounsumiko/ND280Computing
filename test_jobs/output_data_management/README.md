@@ -8,32 +8,35 @@ This example goes deeper into submitting jobs using dirac. A sample JDL file is 
 Submission
 ==========
 
-To submit the job, you can either use the python executable (easy)
+To submit the job, you use the python executable
 
 ```bash
 ./OutputSandbox.py > OutputSandbox.out
 ```
-or edit the jdl file with your specifics and use the following command (harder)
 
-```bash
-dirac-dms-job-submit -f Helloworld.jid sample_HelloWorld.jdl
-```
+Job Status
+==========
 
-Output
-======
-
-Depending on the route you took above, you can view the job status using
+You can view the job status using
 
 ```bash
 dirac-wms-job-status JID
 ````
+where JID is the job ID in the .out file
 
-where JID is the job ID in the JID file or .out file
+Output
+======
 
-User (Owner) Specific JDL Options
-=================================
+Once you have confirmed the job has completed, you can download the output data using DIRAC
 
- * OwnerDN
- * OwnerGroup
- * OwnerName
- * Owner
+```bash
+[user@host ~]$ dirac-wms-job-get-output JID
+Job output sandbox retrieved in /home/user/JID/
+[user@host ~]$ ls JID
+env.out
+std.out
+job.log
+[user@host ~]$ wc -l JID/env.out
+161 JID/env.out
+```
+

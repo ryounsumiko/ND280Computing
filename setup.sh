@@ -1,8 +1,14 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 unset ROOTSYS
 unset MYPROXY_SERVER
 export ND280TRANSFERS=$PWD
+
+if [ -z "$ND280TRANSFERS" ]; then
+    export ND280TRANSFERS=$PWD
+    echo "Setting MYPROXY_SERVER to $PWD"
+fi
+
 
 ## source this script to setup python path to look for the nd280Computing tools and the
 ## ND280COMPUTINGROOT env variable.
@@ -29,10 +35,9 @@ export LCG_CATALOLOG_TYPE=lfc
 export FTS_SERVICE=https://lcgfts3.gridpp.rl.ac.uk:8446
 export LCG_GFAL_INFOSYS=lcg-bdii.gridpp.ac.uk:2170
 
-
 if [ -z "$MYPROXY_SERVER" ]; then
-    export MYPROXY_SERVER=myproxy.cern.ch
-    echo "Setting MYPROXY_SERVER to myproxy.gridpp.rl.ac.uk"
+    export MYPROXY_SERVER=myproxy.gridpp.rl.ac.uk
+    echo "Setting MYPROXY_SERVER to $MYPROXY_SERVER"
 fi
 
 if [ -w /scratch/$USER ]; then

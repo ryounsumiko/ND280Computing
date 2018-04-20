@@ -1,34 +1,117 @@
 # ND280Computing
 
-source or execute the setup.sh while in the nd280Computing directory in which it resides to set the python path environment variable to look in the tools dir for the nd280Computing tools.
+Source the setup.sh while in the ND280Computing directory in which it resides to
+set the python path '''PYTHONPATH''' environment variable to look in the tools
+directory for the ND280Computing tools.
 
-The Intention of this package if to contain scripts and tools used by the people involved in the nd280Computing group. I have started to write my own tools in Python but shell scripts and perl scripts are welcome, anything and everything to make the job of those doing computing easier.
+The intention of this package is to contain scripts and tools used by the people
+involved in the ND280Computing group. The core of the package is written in
+Python v2 but shell scripts and Perl scripts are welcome; anything and
+everything to make the job of those doing computing easier.
 
-I suggest a structure of:
+CERN Virtual Machine
+====================
 
-tools:
+This software assumes you have a working installation of the CERN virtual
+machine file system (CVMFS) for T2K. The documentation on t2k.org is located
+here
 
-A collection of methods/classes/tools to generally make life easier, to be used in many of the scripts.
+https://www.t2k.org/nd280/datacomp/cvmfs
 
-installation_scripts:
+Grid Certificates and DIRAC
+===========================
 
-A collection of automated installation scripts for the nd280, genie and neut software.
+In order to utilize the Grid resources, you must have a valid Grid certificate
+and production role. The instructions for obtaining a certificate are outlined
+on t2k.org under the Data Distribution and Computing group. To gain the
+production role, contact the Computing group.
 
-data_scripts:
+Assuming you have a valid certificate and it is installed on your browser,
+you will need to install DIRAC, a middleware software to initiate a Grid proxy
+and submit jobs. To install DIRAC, go to the doc directory and follow the
+instructions under dirac_installation.md.
 
-A collection of scripts designed to initiate, monitor and bookeep the transfer of data.
+Structure
+=========
+```
+ND280Computing
+│   README.md
+│   setup.sh
+│
+└───tools  # A collection of methods/classes/tools to generally make life easier
+|          # to be used in many of the scripts
+│   ND280Computing.py
+│   ND280Grid.py
+|   ND280DIRACAPI.py
+|   ...
+│   
+└───installation_scripts  # A collection of automated installation scripts for
+|                         # the ND280, GENIE and NEUT software
+|       
+└───processing_scripts  # A collection of submission and bookkeeping scripts
+|                       # for processing
+|   TutorialProcess.py
+|   RunCustom.py
+|   CalibProcess.py
+|   P0DCalibProcess.py
+|   ...
+|    
+└───data_scripts:  # A collection of scripts designed to initiate, monitor and
+|                  # and bookkeep the transfer of data
+└───custom_parameters  # Files that specify runND280 settings like ECal and P0D
+|                      # timing calibrations
+|  	ECALMOD.PARAMETERS.DAT   
+|  	P0DMOD.PARAMETERS.DAT   
+|
+└───docs  # Thorough documentation
+|
+└───test_jobs  # examples to submit jobs using DIRAC
 
-processing_scripts:
-
-A collection of submission and bookeeping scripts for processing.
-
-Tools
-+++++
+```
 
 Job Submission
 ==============
 
-Before submitting any job proxies must be generated for user credentials. 
+Before submitting any job proxies must be generated for user credentials.
+
+Firstly create 24hr dirac-proxy via the following command assuming you have a
+production role:
+
+```bash
+cd path/to/ND280Computing
+source setup.sh
+dirac-proxy-init -g t2k.org_production -M -v 24:00
+```
+
+Or if you do not have production role, change "production" to "user"
+
+```bash
+dirac-proxy-init -g t2k.org_user -M -v 24:00
+```
+
+Go to test_jobs to test how to submit jobs
+
+A more thorough example is to run this command in processing_scripts
+
+```bash
+./RunCustom.py -f filelist.dat -v v11r31 -x CalibProcess.py --dirac --sandbox=../custom_parameters/ECALMOD.PARAMETERS.DAT > RunCustom.out
+```
+
+which runs the CalibProcess.py script using the CVMFS ND280 software version
+v11r31 with the ECALMOD.PARAMETERS.DAT file also uploaded to the computing
+element. The filelist.dat contains a full logical file name (LFN) Grid path
+to a raw file like so
+
+lfn:/grid/t2k.org/nd280/raw/ND280/ND280/00014000_00014999/nd280_00014000_0000.daq.mid.gz
+
+# DEPRECATED
+
+The following description is kept for legacy support
+
+Job Submission
+==============
+
+Before submitting any job proxies must be generated for user credentials.
 
 Firstly create a voms-proxy via the following command:
 
@@ -65,7 +148,7 @@ ND280Software
 
 If you wish to use this package locally you must set the environment variable VO_T2K_ORG_SW_DIR to poin to the directory where nd280 software resides:
 
-I.e. version v8r5p7 of the software should be found at $VO_T2K_ORG_SW_DIR/nd280v8r5p7/ where the 
+I.e. version v8r5p7 of the software should be found at $VO_T2K_ORG_SW_DIR/nd280v8r5p7/ where the
 
 
 To Install Software on the GRID
@@ -75,7 +158,7 @@ To install software on the GRID you must have lcgadmin privilages.
 
 There is an example jdl file in the installation_scripts directory, ExampleND280_install.jdl. This JDL should just be modified by changing the version (v7r19p9) to the desired for installation.
 
-After generating proxies (voms-proxy with lcgadmin Role) one just submits the job, while specifying the resource/CE. 
+After generating proxies (voms-proxy with lcgadmin Role) one just submits the job, while specifying the resource/CE.
 
 $ glite-wms-job-submit -a -c autowms.conf -r <resource> -o install_nd280<version>.jid install_nd280<version>.jdl
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python2
-"""since the DIRAC API creates a JDL file at submission,
-these classes help facilitate creating job scripts
+"""The DIRAC API creates a JDL (not stored locally)
+   file at submission. These classes help facilitate
+   creating job scripts
 """
 import os
 from os import getenv
@@ -71,9 +72,9 @@ class ND280DIRACJobDescription(object):
         self.SetupDIRACAPIInfo()
 
     def SetupDIRACAPIInfo(self):
-        """ Create a Raw data or MC processing jdl file.
-        The one and only argument is the event type to
-        process: spill OR cosmic trigger
+        """Create a Raw data or MC processing jdl file.
+           The one and only argument is the event type to
+           process: spill OR cosmic trigger
         """
 
         self.scriptname = 'ND280' + self.jobtype
@@ -88,11 +89,13 @@ class ND280DIRACJobDescription(object):
 
         # create the input and output sandboxes
         py_files = [self.executable]
-        for fn in os.listdir('%s/tools' % getenv('ND280COMPUTINGROOT')): 
-            full_name = join('%s/tools' % getenv('ND280COMPUTINGROOT'), fn)
+        nd280_comp = getenv('ND280COMPUTINGROOT')
+        for fn in os.listdir('%s/tools' % nd280_comp):
+            full_name = join('%s/tools' % nd280_comp, fn)
             if isfile(full_name) and '.py' in fn:
-                if len(fn.split('.py')[1]) == 0:
-                    py_files.append(full_name)
+                if '.pyo' in fn or '.pyc' in fn:
+                    continue
+                py_files.append(full_name)
         self.inputSandbox = py_files
         if self.cfgfile:
             self.inputSandbox.append(self.cfgfile)
@@ -179,9 +182,9 @@ logFile=\"%s.log\")\n' % (self.executable, self.argument, self.scriptname))
 
 
 def GetJobIDFromSubmit(submitResult):
-    """when the DIRAC.submit() method is called, use this
-    method to extract the JodID from the dictionary
-    example {...stuff..., 'Value': 8765031, 'JobID': 8765031}
+    """When the DIRAC.submit() method is called, use this
+       method to extract the JodID STRING from the dictionary
+       example {...stuff..., 'Value': 8765031, 'JobID': 8765031}
     """
     jid_identifiers = ['JobID', 'Value']
     if type(submitResult) is dict:

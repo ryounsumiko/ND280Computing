@@ -28,7 +28,7 @@ class status_wait_times(object):
     kProxyNextCheck = 6 * kMinute
     kProcessWait = 1 * kMinute
     kTimeout = 5 * kMinute
-    kJobSubmit = 2 * kMinute
+    kJobSubmit = 10 * kSecond
 
 
 class LCG(object):
@@ -40,7 +40,7 @@ class LCG(object):
 
         # new commands go here
         self.commands['bringonline'] = 'lcg-bringonline '
-        
+
         self.SetTimeouts(timeout)
 
     def SetTimeouts(self, new_timeout):
@@ -55,7 +55,7 @@ class LCG(object):
 
         # new commands go here
         self.bringonline = self.commands['bringonline']
-            
+
 
 
 

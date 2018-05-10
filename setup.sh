@@ -12,14 +12,17 @@ fi
 
 ## source this script to setup python path to look for the nd280Computing tools and the
 ## ND280COMPUTINGROOT env variable.
-##export ND280COMPUTINGROOT=$(cd $(dirname "${BASH_SOURCE[0]}") && pwd) ## export this as an env var
+# export ND280COMPUTINGROOT=$(cd $(dirname "${BASH_SOURCE[0]}") && pwd) ## export this as an env var
 export ND280COMPUTINGROOT=$PWD
 echo '$ND280COMPUTINGROOT='$ND280COMPUTINGROOT
 
 ## Set the CVS path
-# if you wish to use your T2K dev account, change "anon"
-export CVSROOT=:ext:anon@repo.nd280.org:/home/trt2kmgr/T2KRepository
+# if you wish to use your T2K dev account, change "anoncvs" to your develop account username
+export CVSROOT=:ext:anoncvs@repo.nd280.org:/home/trt2kmgr/T2KRepository
 echo '$CVSROOT='$CVSROOT
+
+export LFC_HOST=lfc.gridpp.rl.ac.uk
+export LCG_GFAL_INFOSYS=lcg-bdii.gridpp.ac.uk:2170
 
 ## Python
 PYTHONPATH=$PYTHONPATH:$ND280COMPUTINGROOT/tools

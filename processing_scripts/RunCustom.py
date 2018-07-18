@@ -52,7 +52,7 @@ parser.add_option('-O', '--optargs', default='',
 parser.add_option('-i', '--inputs', default='',
                   help='Optional files for input SandBox, comma delimited')
 
-parser.add_option('--dirac', default=False,
+parser.add_option('--dirac', default=True,
                   help='Optional submission via DIRAC',
                   action='store_true')
 
@@ -66,6 +66,9 @@ parser.add_option("--test", default=False,
 
 parser.add_option("-s", "--sandbox", default='',
                   help="Configuration files to add to the InputSandbox, comma delimited")
+
+parser.add_option("-V", "--banVAC", default='', dest="banVAC",
+                  help="Ban all VAC sites, see why in ND280DIRACAPI.py")
 
 (options, args) = parser.parse_args()
 ##########################################################################
@@ -125,7 +128,7 @@ if options.useTestDB:
     arglist += ' --useTestDB '
 
 # add the input file at the end
-arglist += ' -i ' 
+arglist += ' -i '
 
 # Count the number of jobs submitted
 counter = 0
@@ -155,7 +158,9 @@ for a_file in filelist:
         # add more files to input sandbox
         if len(sandbox) > 0:
             for in_file in sandbox:
-	        dirac_proc.jd.inputSandbox.append(in_file.strip())
+                dirac_proc.jd.inputSandbox.append(in_file.strip())
+        if options.banVAC:
+            dirac_proc.BanAllVACSites()
         dirac_script = '%s.py' % dirac_proc.jd.scriptname
         if os.path.isfile(dirac_script):
             os.system('rm -f %s' % dirac_script)

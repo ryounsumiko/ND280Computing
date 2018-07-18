@@ -178,10 +178,10 @@ logFile=\"%s.log\")\n' % (self.executable, self.argument, self.scriptname))
             scriptfile.write('\n')
 
             # banned sites
-            scriptfile.write('diracJob.setBannedSites([')
-            for i_banned_site in self.bannedSites:
-                scriptfile.write('\"%s\",\n' % i_banned_site)
-            scriptfile.write('                        ])\n')
+            scriptfile.write('diracJob.setBannedSites([\"%s\"' % self.bannedSites[0])
+            for i_banned_site in range(1, len(self.bannedSites)):
+                scriptfile.write(',\"%s\"' % self.bannedSites[i_banned_site])
+            scriptfile.write('])\n')
 
             # submit the job
             scriptfile.write('print \"submitting job %s\"\n' % (self.scriptname))

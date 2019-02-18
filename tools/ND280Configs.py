@@ -404,6 +404,7 @@ class ND280Config:
 
             ### nd280mc
             configfile.write('[nd280mc]\n')
+            configfile.write('physicslist = ' + 'NeutG4CascadeInterface_QGSP_BERT' + '\n')   # p6S   # soph does it go here or the other one?
             configfile.write('num_events = '             + self.options['num_events']             + '\n')
             configfile.write('mc_type = '                + self.options['mc_type']                + '\n')
             configfile.write('random_seed = '            + self.options['nd280mc_random_seed']    + '\n')
@@ -753,6 +754,7 @@ class ND280Config:
 
             ### nd280mc
             configfile.write('[nd280mc]\n')
+            configfile.write('physicslist = ' + 'NeutG4CascadeInterface_QGSP_BERT' + '\n') # p6S  soph does it go here or the other one
             configfile.write('num_events = '             + self.options['num_events']             + '\n')
             configfile.write('mc_type = Genie\n')
             configfile.write('random_seed = '            + self.options['nd280mc_random_seed']    + '\n')

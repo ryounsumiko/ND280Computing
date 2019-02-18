@@ -235,9 +235,9 @@ class ND280Job(object):
 
         for log_file in glob.glob('*.log'):
             f = ND280File(log_file)
-            if not f.Register(curr_export_dir,srm):
-                sys.exit('Log file missing from output')
-
+            # if not f.Register(curr_export_dir,srm):  # soph-quick-dirty-dfc-fix
+              #   sys.exit('Log file missing from output')  # soph-quick-dirty-dfc-fix
+            f.Register(curr_export_dir,srm) #:  # soph-quick-dirty-dfc-fix
 
         return 0
 
@@ -254,13 +254,15 @@ class ND280Job(object):
         curr_export_dir = dir_prot + '/' + copy_dir + '/' + dir_end
         curr_export_dir = curr_export_dir.replace('//','/')
 
-        #Check if a cfg file is already saved
-        command="lfc-ls "+curr_export_dir.replace('lfn:','')
-        lines,errors=runLCG(command)
-        for line in lines:
-            if copy_type in line:
-                print 'Conf file already stored on LFN'
-                return 0
+        # soph-quick-dirty-dfc-fix
+        # remove this whole block and reqrite in dfc at some point
+        ##Check if a cfg file is already saved
+        #command="lfc-ls "+curr_export_dir.replace('lfn:','')
+        #lines,errors=runLCG(command)
+        #for line in lines:
+        #    if copy_type in line:
+        #        print 'Conf file already stored on LFN'   # soph-quick-dirty-dfc-fix
+        #        return 0     # soph-quick-dirty-dfc-fix
 
         #If not, upload a file
         os.chdir(self.base)
@@ -371,8 +373,8 @@ class ND280Job(object):
         # Check that all the files to upload are present
         filetags = filedict.keys()
         missing = [t for t in dir_list if t not in filetags]
-        if missing:
-            sys.exit('ROOT file(s):'+' '.join(missing)+' missing from output')
+        #if missing:
+            # sys.exit('ROOT file(s):'+' '.join(missing)+' missing from output') #soph-quick-dirty-dfc-fix
 
         #Copy files to GRID
         for stage,filename in filedict.iteritems():
@@ -399,8 +401,8 @@ class ND280Job(object):
             copy_ok   = curr_file.Register(curr_export_dir,srm,timeout=1800)
 
             # should remove all output if there is a failure...
-            if not copy_ok:
-                sys.exit("ROOT file "+filename+" failed lcg-cr")
+            #if not copy_ok:
+                # sys.exit("ROOT file "+filename+" failed lcg-cr")  #soph-dfc-quick-dirty-fix
         return 0
 
 
@@ -470,7 +472,7 @@ class ND280Job(object):
 
         print 'Found vector '+vectorDir+'/'+vectorName
         vector = ND280GRID.ND280File('lfn:'+vectorDir+'/'+vectorName)
-        self.localVector = vector.CopyLocal(self.base,ND280GRID.GetDefaultSE())
+        # self.localVector = vector.CopyLocal(self.base,ND280GRID.GetDefaultSE())  soph
 
         return 0
 
@@ -560,6 +562,7 @@ class ND280Process(ND280Job):
         sys.stdout.flush()
 
         if override:
+            print('soph - ND280Job.py - ND280Process - GetLocalFioile - override = ' + override)
             print 'GetLocalFile(%s)' % override
             f = ND280File(override)
             self.localfile = f.CopyLocal(self.base,ND280GRID.GetDefaultSE())
@@ -573,9 +576,15 @@ class ND280Process(ND280Job):
         print 'self.input.gridfile = ', self.input.gridfile
 
         if self.input.gridfile:
-            self.localfile = self.input.CopyLocal(self.base,ND280GRID.GetDefaultSE())
+
+            print ('soph ND280Job ND280Process GetLocalFile - is gridfile')
+            # self.localfile = self.input.CopyLocal(self.base,ND280GRID.GetDefaultSE())  #soph-quick-dirty-dfc-fix
+            # using base is giving it local directory, we want the dfc diractory
+            self.localfile = self.input.CopyLocal(self.input.path,ND280GRID.GetDefaultSE())
+
             print 'Local copy to ' + self.localfile
         else:
+            print ('soph ND280Job ND280Process GetLocalFile - is local file')
             self.localfile = self.input.filename
             print self.input.filename + ' is local'
 
@@ -677,7 +686,7 @@ class ND280Process(ND280Job):
                     raise self.Error('The file is processed to stage ' + stage + ' so re-processing cannot re-commence')
 
             ## Locate the vector file
-            if self.LocateVectorFile():
+            if self.LocateVectorFile():   # soph-quick-dirty-dfc-fix    need to edit this so it downloads form DFC
                 raise self.Error('Could not locate input vectors')
 
         self.config_options['inputfile']      = self.localfile
@@ -691,12 +700,16 @@ class ND280Process(ND280Job):
         elif 'run2' in self.input.path:
             self.config_options['ecal_periods_to_activate'] = '1-2'
             self.config_options['tpc_periods_to_activate']  = 'runs2-3'
-        elif 'run3' in self.input.path:
+        elif ('run3' in self.input.path  or  'run6' in self.input.path):
             self.config_options['ecal_periods_to_activate'] = '3-4'
             self.config_options['tpc_periods_to_activate']  = 'runs2-3'
-        else:
+        elif ( 'run4' in self.input.path  or  'run5' in self.input.path):
             self.config_options['ecal_periods_to_activate'] = '3-4'
             self.config_options['tpc_periods_to_activate']  = 'runs2-3-4'
+        else: # (run 7,8,9 ? )
+            self.config_options['ecal_periods_to_activate'] = '3-4'
+            self.config_options['tpc_periods_to_activate']  = 'run7'
+
 
         # 2015-08 geometry and beam configurations
         if '2015-08' in self.input.path:
@@ -1028,7 +1041,7 @@ class ND280Process(ND280Job):
         ## Offset the subrun no. ?
         if 'subrunOffset' in self.custom_list_dict:
             subrun += int(self.custom_list_dict['subrunOffset'])
-        else: 
+        else:
             subrun = str(subrun)
 
         # [software]
@@ -1070,7 +1083,8 @@ class ND280Process(ND280Job):
 
         #self.config_options['maxint_file'  ] = self.localfile.replace('.root','evtrate_'+self.config_options['comment']+'.root')
         # TODO - soph - should pass this as an option
-        self.config_options['maxint_file'  ] = '/cvmfs/t2k.egi.eu/NEUT_event_rate/NEUT5.4.0_nu.13a_nom_ND6_m250ka_flukain.allevtrate_magnet201011water.root' # soph-neutMC - anti run5water 5.4.0
+        self.config_options['maxint_file'  ] = '/cvmfs/t2k.egi.eu/NEUT_event_rate/nu.13a_nom_ND6_250ka_flukain.allevtrate_magnet_201011air.root'
+        #self.config_options['maxint_file'  ] = '/cvmfs/t2k.egi.eu/NEUT_event_rate/NEUT5.4.0_nu.13a_nom_ND6_m250ka_flukain.allevtrate_magnet201011water.root' # soph-neutMC - anti run5water 5.4.0
         #self.config_options['maxint_file'  ] = '/cvmfs/t2k.egi.eu/NEUT_event_rate/NEUT5.4.0_nu.13a_nom_ND6_m250ka_flukain.allevtrate_magnet201508water.root'  # soph-neutMC
 
         self.config_options['pot'          ] = POT

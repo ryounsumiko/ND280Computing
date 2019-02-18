@@ -42,12 +42,12 @@ TRANSFER_FILE_LIST = list()
 MAX_TRANSFERS_PER_CHANNEL = 600
 
 
-""" ############################################################# """
 """
 Number of constants and methods here are unweildy
 original SE methods defined in StorageElements, added them here for
 backwards compatability
 """
+
 # Master dictionary containing storage elements (SE) bindings
 # FORMAT se : [root, fts2Channel, hasSpaceToken]
 se_master = SE.SE_MASTER
@@ -535,6 +535,40 @@ def runLCG(in_command, in_timeout=status_wait_times.kTimeout, is_pexpect=True):
 
     print 'returned'
     return lines, errors
+
+
+
+def runDIRAC(in_command, in_timeout=status_wait_times.kTimeout):
+    """ DIRAC equiv implementation of runLCG without pexpect"""
+    print in_command
+
+    # Limit the execution time
+    # - note this only clocks CPU time so zombie
+    # processes will last forever..
+    command = 'ulimit -t ' + str(max(status_wait_times.kTimeout,
+                                 in_timeout)) + '\n' + in_command
+
+    # try the command a few times because failures happen on the GRID
+    print datetime.now()
+    for ii in range(3):
+        print 'Try %d of %s with %d timeout' % (ii, in_command, in_timeout)
+
+        line, errors = ND280Comp.GetListPopenCommand(command)
+
+        if errors:
+            print 'ERROR!'
+            print '\n'.join(errors)
+            time.sleep(min(in_timeout, 3*60))
+            continue
+        else:
+            break
+    # Removal of newlines, carriage retruns
+    lines = [l.strip() for l in lines]
+    errors = [e.strip() for e in errors]
+
+    print 'returned'
+    return lines, errors
+
 
 
 def getAlias(filename):
@@ -1365,10 +1399,7 @@ class ND280File(object):
         print 'fn', fn
         try:
             if 'lfn:' in fn or 'srm:' in fn or 'guid:' in fn:
-                self.reps = getReps(fn)
-                self.alias = getAlias(fn)
-                self.guid = getGUID(fn)
-
+                self.alias = fn
                 # Get the file size from the (formatted) LFC long listing
                 command = 'lfc-ls -ld ' + self.alias.replace('lfn:', '')
                 print 'command', command
@@ -1380,7 +1411,6 @@ class ND280File(object):
                 except Exception as exception:
                     print str(exception)
                     print "Couldn't establish filesize"
-
                 # Set up relative paths and filename
                 self.path = self.alias.replace('lfn:/grid/', '')
                 self.path = self.path.replace(self.filename, '')
@@ -1409,6 +1439,8 @@ and does not exist on the local system ' + fn)
             self.filetype = 'c'
         else:
             self.filetype = 'o'
+
+        print('soph - ND280GRID.py - ND280File  3- self.filename = ' + self.filename )
 
     def __del__(self):
         """ Clean up after the object. If you have requested a turl
@@ -1455,6 +1487,7 @@ file hash. File type is ', self.filetype)
             raise self.Error('This is not a processed or MC file, cannot get\
 stage of processing.')
         fn_spl = self.filename.split('_')
+        print('soph  ND280File.GetStage   returns   fn_spl[5] = ' + fn_spl[5] )
         return fn_spl[5]
 
     def GetVersion(self):
@@ -1739,69 +1772,23 @@ On a GRID node? No=Don\'t Worry, yes=WTF')
 
         print 'CopyLocal(%s)' % (copy_filename)
 
-        if os.path.exists(copy_filename):
-            print 'File exists'
-            return copy_filename
+        dirac_command = 'dirac-dms-get-file /' + copy_filename
+        os.system(dirac_command)
 
-        if 'srm-t2k.gridpp.rl.ac.uk' in original_filename:
-            lines, errors = runLCG('lcg-ls -l ' + original_filename)
-            if errors:
-                raise self.Error('\
-Could not determine staging of ' + original_filename)
-            else:
-                if 'ONLINE' not in lines[0].split()[5]:
-                    lines, errors = runLCG(ND280Comp.LCG(status_wait_times.kHour).bringonline
-                                           + original_filename,
-                                           in_timeout=status_wait_times.kHour,
-                                           is_pexpect=False)
-                    if errors:
-                        print '\n'.join(errors)
-                        raise self.Error('\
-lcg-bringonline of '+original_filename+' threw an error')
-                    if lines:
-                        if 'lcg-bringonline: Success' in lines[0] and 'TIMEDOUT' not in lines[0]:
-                            print lines[0]
-                    else:
-                        lines, errors = runLCG('lcg-ls -l ' +
-                                               original_filename)
-                        if 'ONLINE' not in lines[0].split()[5]:
-                            raise self.Error('\
-lcg-bringonline of ' + original_filename + ' did not bring file online')
+        return self.filename
 
-        command = 'lcg-cp ' + original_filename + ' ' + copy_filename
-        # timeouts added by hand when not using pexpect
-        lines, errors = runLCG(command, status_wait_times.kHour,
-                               is_pexpect=False)
-        if errors:
-            raise self.Error('Could not copy ' + original_filename +
-                             ' to the local directory ' + copy_filename +
-                             '\n', errors)
-        print '\n'.join(lines)
+
+    ########################################################################################################################
+    ######################## Methods for gridlocally resident files ########################################################
+    ########################################################################################################################
+
+    # def Register(self, lfn='', srm='srm-t2k.gridpp.rl.ac.uk', timeout=300):
+    def Register(self, lfn=''):
         """
-        6A verification control sample names break nd280Control - rename them
-        refer to http://www.hep.lancs.ac.uk/nd280Doc/stable/invariant/\
-nd280Control/fileNaming.html
-        """
-        if self.filename.startswith('oa_') and '_ctl-' in self.filename[:15]:
-            # first remove '-' instances from 3rd (ppp) field
-            ppp = self.filename.split('_')[2]
-            newfilename = self.filename.replace(ppp, ppp.replace('-', ''))
-            # now move second run_subrun instance to comment field
-            nnn = '-'.join(self.filename.split('_')[3].split('-')[2:4])
-            newfilename = newfilename.replace('-' + nnn, '')
-            newfilename = newfilename.replace('.root', nnn + '.root')
-            newfilename = dir + '/' + newfilename
+        For local files first copy to grid.
+             - lfn=the LFC directory wished for the file
 
-            print 'renaming ' + copy_filename + ' to ' + newfilename
-            os.rename(copy_filename, newfilename)
-            return newfilename
-
-        return copy_filename
-
-    # Methods for gridlocally resident files
-    def Register(self, lfn='', srm='srm-t2k.gridpp.rl.ac.uk',
-                 timeout=status_wait_times.kTimeout):
-        """
+        DEPRECATED DOCUMENTATION
         For local files:
              first copy to grid.
              lfn=the LFC directory wished for the file
@@ -1811,79 +1798,21 @@ nd280Control/fileNaming.html
              srm=the SURL to register, or the SRM on which to register
         """
 
-        # Local files, lcg-cr
-        if not self.gridfile:
+        _, dlfn = lfn.split("lfn:/grid", 1)
+        dlfn = dlfn + self.filename
 
-            # Ensure lfn begins with an 'lfn:/' prefix
-            if not lfn.startswith('lfn:'):
-                lfn = 'lfn:' + lfn
-
-            # Ensure lfn (here the LFC destination directory) ends with a slash
-            if not lfn.endswith('/'):
-                lfn += '/'
-
-            dest_file = DIRSURL(lfn, srm) + '/' + self.filename
-
-            # Remove any errant '//' ignoring the first 10 characters
-            dest_file = dest_file[:10] + dest_file[10:].replace('//', '/')
-
-            # If we are here then the file doesn't exist
-            # on the desination srm so we copy and register:
-            command = 'lcg-cr -v -v'
-            if se_spacetokens[srm]:
-                command += ' -s T2KORGDISK'
-            command += ' -d ' + dest_file
-            command += ' -l ' + lfn + self.filename
-            command += ' file:' + self.path + self.filename
-            lines, errors = runLCG(command, in_timeout=timeout)
-
-            # Check for existence of replica:
-            command = 'lcg-ls ' + dest_file
-            lines, errors = runLCG(command)
-            if errors:
-                # Last ditch, try replicating elsewhere
-                # Not appropriate to copy data indiscriminately to T2s...
-                # Only try RAL and QMUL (lots of disk) instead:
-                for try_srm in ['srm-t2k.gridpp.rl.ac.uk',
-                                'se03.esc.qmul.ac.uk']:
-
-                    dest_file = DIRSURL(lfn, try_srm) + '/' + self.filename
-                    command = 'lcg-cr'
-                    if se_spacetokens[try_srm]:
-                        command += ' -s T2KORGDISK'
-                    command += ' -d ' + dest_file
-                    command += ' -l ' + lfn + self.filename
-                    command += ' file:' + self.path + self.filename
-                    lines, errors = runLCG(command, in_timeout=timeout)
-
-                    # Check for existence of replica:
-                    command = 'lfc-ls -l ' + lfn.replace('lfn:', '')
-                    command += self.filename
-                    lines, errors = runLCG(command)
-                    if not errors:
-                        return lfn + self.filename
-
-                raise self.Error('Error copying local file to the GRID\n',
-                                 errors)
-            else:
-                return lfn + self.filename
-
-        # this is a grid file
+        diracCMDFMT = 'dirac_add_file -ddd %s %s %s'
+        SE = 'UKI-LT2-QMUL2-disk'
+        diracCMD = diracCMDFMT % (dlfn, self.filename, SE)
+        _, errors = runDIRAC(diracCMD)
+        if errors:
+            for retry in range(3):
+                _, errors = runDIRAC(diracCMD)
+                if not errors:
+                    return dlfn
+            raise self.Error('Error copying local file to the GRID\n', errors)
         else:
-            if 'srm:/' in srm:
-                dest_file = srm
-            else:
-                dest_file, on_srm = self.SURL(srm)
-
-            command = 'lcg-rf --vo t2k.org -g ' + self.guid + ' ' + dest_file
-            lines, errors = runLCG(command)
-
-            if errors:
-                print '\n'.join(errors)
-                raise self.Error('Unable to register ' + self.filename)
-            else:
-                print "\n".join(lines)
-                return self.filename
+            return dlfn
 
 
 class ND280Dir(object):
@@ -1942,8 +1871,7 @@ class ND280Dir(object):
                         f = ND280File(self.dir + '/' + justFN, check=False)
                     except Exception as exception:
                         print str(exception)
-                        message = 'Could NOT\
-create ND280File with name ' + self.dir + '/' + justFN
+                        message = 'Could NOT create ND280File with name ' + self.dir + '/' + justFN
                         if not skipFailures:
                             sys.exit(message)
                         else:
@@ -2159,8 +2087,7 @@ create ND280File with name ' + self.dir + '/' + justFN
                 raise self.Error('Trying to synchronise two lfc directories '
                                  + self.dir + ' and ' + new_dir.dir)
             else:
-                raise self.Error('Trying to synchronise two local \
-directories ' + self.dir + ' and ' + new_dir.dir)
+                raise self.Error('Trying to synchronise two local directories ' + self.dir + ' and ' + new_dir.dir)
 
         if self.griddir:
             for f in self.ND280Files:
@@ -2249,7 +2176,11 @@ class ND280JDL(object):
     def __init__(self, nd280ver, input, jobtype, evtype='', options={}):
         """ Initialise the JDL object """
         self.nd280ver = nd280ver
+        print ( ' soph - ND280GRID.py - Class ND280JDL def- input = ' + input )
+        # soph - at this point we have whatever was in the input file
         self.input = ND280File(input)
+        # now
+        print ( ' soph - ND280GRID.py - Class ND280JDL def- self.input.filename = ' + self.input.filename )
         self.jobtype = jobtype
         self.evtype = evtype
         self.options = options
@@ -2276,14 +2207,13 @@ raw data file, please specify the trigger type via the options[\'trigger\']')
         pass
 
     def CreateJDLFile(self, dir=''):
-        """ Generic creation of a JDL file, all specifics are to be written
-        in a setup function E.g. SetupProcessJDLFile """
+        """ Generic creation of a JDL file, all specifics are to be written in a setup function E.g. SetupProcessJDLFile """
 
+        if '.jdl' not in self.jdlname:
+            self.jdlname += '.jdl'
+        if dir:
+            self.jdlname = dir + '/' + self.jdlname
         try:
-            if '.jdl' not in self.jdlname:
-                self.jdlname += '.jdl'
-            if dir:
-                self.jdlname = dir + '/' + self.jdlname
             jdlfile = open(self.jdlname, "w")
 
             # just a single string
@@ -2295,8 +2225,7 @@ raw data file, please specify the trigger type via the options[\'trigger\']')
                 raise self.Error('Could not get\
 the ND280COMPUTINGROOT environment variable, have you executed the setup.sh?')
 
-            input_SB_string = 'InputSandbox = \
-{\"' + comp_path + '/tools/*.py\", \"' + self.executable + '\"'
+            input_SB_string = 'InputSandbox = {\"' + comp_path + '/tools/*.py\", \"' + self.executable + '\"'
             if self.cfgfile:
                 input_SB_string += ', \"' + self.cfgfile + '\"'
             for j, i in enumerate(self.inputsandbox):
@@ -2370,6 +2299,9 @@ the ND280COMPUTINGROOT environment variable, have you executed the setup.sh?')
         The one and only argument is the event type to
         process: spill OR cosmic trigger
         """
+
+        print ( ' soph - ND280GRID.py - SetupProcessJDLFile - self.input.filename = ' + self.input.filename )
+        print ( ' soph - ND280GRID.py - SetupProcessJDLFile - self.input.gridfile = ' + self.input.gridfile )
 
         # Define the JDL file name... there are quite a few steps
         self.jdlname = 'ND280' + self.jobtype
@@ -2458,6 +2390,7 @@ the ND280COMPUTINGROOT environment variable, have you executed the setup.sh?')
         # If input is a local file, add it to InputSandbox and set the correct
         # input path
         if not self.input.gridfile:
+            print( ' soph - ND280GRID.py - SetupProcessJDLFile -if not self.input.gridfile ')
             localpath = self.input.path + self.input.filename
             if 'cvmfs' in self.input.path:
                 self.input.alias = localpath
@@ -2467,7 +2400,10 @@ the ND280COMPUTINGROOT environment variable, have you executed the setup.sh?')
                 self.inputsandbox.append(localpath)
                 self.arguments += ' -i ' + self.input.filename
         else:
+            print( ' soph - ND280GRID.py - SetupProcessJDLFile -if not self.input.gridfile -> else')
             self.arguments += ' -i ' + self.input.alias
+
+        print( ' soph - ND280GRID.py - SetupProcessJDLFile - self.arguments = ' + self.arguments )
 
         # Define paths to stdout and stderr
         self.stdoutput = 'ND280' + self.jobtype + '.out'
@@ -2523,7 +2459,7 @@ class ND280JID(object):
         #         child.sendline(self.jobno)
         #     else:
         #         print "There are just %s IDs in this file\
-# so cannot choose %s going with %s" % (max, str(self.jobno, max))
+        # so cannot choose %s going with %s" % (max, str(self.jobno, max))
         #         child.sendline(max)
 
         # # Get the current status

@@ -77,6 +77,8 @@ if not input:
     sys.exit('Please enter an input file')
 if not input.startswith('lfn:') and not input.startswith('/cvmfs'):
     sys.exit('Input file path must start with lfn: or /cvmfs')
+    
+print('soph - ND280MC_process.py  1)  input = ' + input)
 
 modules = options.modules
 modulelist = []
@@ -104,6 +106,9 @@ if not options.test:
 
 print 'INPUT FILE: ' + input
 input_file=ND280File(input)
+
+print('soph - ND280MC_process.py  2)  input = ' + input)
+
     
 ## Create Job object
 print 'Job object'
@@ -119,6 +124,9 @@ if 'fluka' in input:
 else:
     jobtype = 'MC'
     stage   = input_file.GetStage()
+
+print('soph - ND280MC_process.py  3)  stage = ' + stage)    
+
     
 j=ND280Process(nd280ver, input_file, jobtype, evtype, modulelist, config, dbtime, fmem, vmem,tlim)
 

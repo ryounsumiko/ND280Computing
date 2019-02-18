@@ -7,20 +7,29 @@ from DIRAC.Interfaces.API.Dirac import Dirac
 from DIRAC.Interfaces.API.Job import Job
 
 jobName = 'HelloWorld'
+executable = '/bin/echo'
+stdout = 'std.out'
+stderr = 'std.err'
+logfile = 'HelloWorldjob.log'
 
-# create the DIRAC API Job object
-diracJob = Job()
-# set the job length, but not needed in this example
-diracJob.setCPUTime(500)
+# The executable here '' is later set, so don't confuse users later on
+diracJob = Job('', stdout, stderr)
+
 diracJob.setName(jobName)
-diracJob.setExecutable('echo', arguments='\"Hello world!\"')
-# multiple executables can be set
-# diracJob.setExecutable('ls', arguments='-l')
-# diracJob.setExecutable('echo', arguments='\"hello again\"')
 
-print 'submitting job', 'HelloWorld'
+# Set the program/executable, arguments, logFile, ...
+diracJob.setExecutable('echo', arguments='\"Hello world!\"')
+
+# multiple executables can be set/appended
+# diracJob.setExecutable('ls', arguments='-l')
+# diracJob.setExecutable(executable, arguments='\"hello again\"')
+
+# Set the job length, but not needed in this example
+diracJob.setCPUTime(500)
+
+print 'submitting job', jobName
 dirac = Dirac()
-result = dirac.submit(diracJob)
+result = dirac.submitJob(diracJob)
 print 'Submission Result: ', result
 
 # try to create job id file

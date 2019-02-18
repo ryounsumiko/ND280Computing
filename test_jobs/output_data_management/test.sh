@@ -2,5 +2,6 @@
 OUT=env.out
 echo "Running \"env\" into $OUT"
 sleep 5
-env > $OUT
+/bin/env > $OUT
+/bin/ls
 echo "DONE!"

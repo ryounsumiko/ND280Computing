@@ -111,14 +111,17 @@ if nsub:
     tempconf += str(nsub)
 tempconf += '.conf'
 
-submit_command='time -p glite-wms-job-submit '
-if delegation:
-    submit_command+='-d '+delegation
-else:
-    submit_command+='-a'
+
+submit_command='time -p dirac-wms-job-submit '
+
+#if delegation:
+#    submit_command+='-d '+delegation
+#else:
+#    submit_command+='-a'
+# TODO - soph - not sure about delegating long term proxies with dirac.. come back to this
 
 #submit_command+=' -c '+tempconf+' -o '
-submit_command+=' -c autowms.conf -o '
+#submit_command+=' -c autowms.conf -o '
 
 counter   = 0
 submitted = 0
@@ -187,10 +190,8 @@ for f in filelist:
         if outdel[0] != 0:
             print 'Error: rm -rf ' + jidname + ' failed'
 
-    if not resource:
-        command = submit_command + jidname + ' ' + jdlname
-    else:
-        command = submit_command + jidname + ' -r ' + resource + ' ' + jdlname
+    command = submit_command + ' -f ' +jidname + ' ' + jdlname
+
     print command
 
     ii=0

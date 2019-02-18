@@ -167,19 +167,28 @@ for l in lines:
     joblink = flines[1]
     print joblink
 
-    command = 'glite-wms-job-output --dir ' + outdir + ' ' + joblink
+    #command = 'glite-wms-job-output --dir ' + outdir + ' ' + joblink
+    command = 'dirac-wms-job-get-output -f ' + self.jidfilename + ' --Dir ' + outdir
 
     ii=0
     timeouts = 0
     while ii == 0:
         child = pexpect.spawn(command,timeout=20)
-        ii=child.expect([pexpect.TIMEOUT,'Error','ABORTED',pexpect.EOF])
-        if ii == 3:
+        #ii=child.expect([pexpect.TIMEOUT,'Error','ABORTED',pexpect.EOF])
+        ii = child.expect([pexpect.TIMEOUT, 'Error', pexpect.EOF])
+        # soph - dirac returns Error in the case you feed it rubbish
+        # soph - and it returns Error if the job was killed
+        #
+        #if ii == 3:
+        if ii == 2:
             dcounter += 1
             print child.before
             time.sleep(1)
-        elif ii == 1 or ii == 2:
+        #elif ii == 1 or ii == 2:
+        elif ii == 1:
             jj=child.expect([pexpect.EOF,'.* : '])
+            # soph - TODO - dont know what situation causes you to write 'n' ?
+            # soph - so hard to work out what the dirac equivalent is... no files to test on
             if jj == 1:
                 child.sendline('n')
             print 'Error' + child.before
@@ -198,7 +207,10 @@ for l in lines:
 #-------------------------------------------------------
 print 'Loop over all job output files...'
 
-command = 'ls -d ' + outdir + '/' + username + '_*' 
+#command = 'ls -d ' + outdir + '/' + username + '_*'
+# soph - dirac doesnt put your username in the output folder name
+command = 'ls -d ' + outdir + '/' + username + '_*'
+
 lines,errors = runLCG(command,is_pexpect=False)
 
 

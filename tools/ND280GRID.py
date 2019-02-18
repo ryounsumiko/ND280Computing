@@ -1101,6 +1101,10 @@ def SetGridEnv():
     if not getenv("MYPROXY_SERVER"):
         os.environ["MYPROXY_SERVER"] = 'myproxy.gridpp.rl.ac.uk'
 
+    # SOFTWARE DIRECTORY
+    if not os.getenv("VO_T2K_ORG_SW_DIR"):
+        os.environ["VO_T2K_ORG_SW_DIR"] = '/cvmfs/t2k.egi.eu'
+
     return 0
 
 

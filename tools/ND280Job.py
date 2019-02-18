@@ -1001,9 +1001,15 @@ class ND280Process(ND280Job):
         ## Get local input file
         self.GetLocalFile()
 
+
         ## Get run and subrun
         # subrun = ND280GRID.GetSubRunFromFlukaFileName(self.input.filename)
-        subrun =  0  # this is an int - arithmetic and stringification in lines below
+
+        sub_split = str(self.config_options).split("subrunOffset': '" , 1)[1]
+        sub_split_slice = sub_split[:-2]
+
+        subrun =  0  # this is an int - arithmetic and stringification in lines below  # soph-neutMC
+        subrun=sub_split_slice      # soph-neutMC
         run    = '0' # default to 0
 
         ## Was the run code specified? - It should be in the format ZABCDEEE - test that length is 8
@@ -1022,7 +1028,8 @@ class ND280Process(ND280Job):
         ## Offset the subrun no. ?
         if 'subrunOffset' in self.custom_list_dict:
             subrun += int(self.custom_list_dict['subrunOffset'])
-        subrun = str(subrun)
+        else: 
+            subrun = str(subrun)
 
         # [software]
         self.config_options['neut_setup_script'] = '%s/NEUT%s/%s/src/neutgeom/setup.sh' % (os.getenv('VO_T2K_ORG_SW_DIR'),self.neutVersion,self.neutVersion)
@@ -1035,7 +1042,9 @@ class ND280Process(ND280Job):
             self.config_options['p0d_water_fill'] = '0'
 
         # [configuration]
-        self.config_options['module_list'] = 'neutSetup neutMC'
+        #self.config_options['module_list'] = 'neutSetup neutMC'   # soph-neutMC
+        self.config_options['module_list'] = 'neutMC' # soph-neutMC
+
 
         # [filenaming]
         self.config_options['run_number'] = run
@@ -1058,7 +1067,12 @@ class ND280Process(ND280Job):
         self.config_options['flux_region'  ] = vertex
         if self.input.path.startswith('/cvmfs') : self.config_options['flux_file'] = self.input.path + self.input.filename
         else                                    : self.config_options['flux_file'] = self.localfile
-        self.config_options['maxint_file'  ] = self.localfile.replace('.root','evtrate_'+self.config_options['comment']+'.root')
+
+        #self.config_options['maxint_file'  ] = self.localfile.replace('.root','evtrate_'+self.config_options['comment']+'.root')
+        # TODO - soph - should pass this as an option
+        self.config_options['maxint_file'  ] = '/cvmfs/t2k.egi.eu/NEUT_event_rate/NEUT5.4.0_nu.13a_nom_ND6_m250ka_flukain.allevtrate_magnet201011water.root' # soph-neutMC - anti run5water 5.4.0
+        #self.config_options['maxint_file'  ] = '/cvmfs/t2k.egi.eu/NEUT_event_rate/NEUT5.4.0_nu.13a_nom_ND6_m250ka_flukain.allevtrate_magnet201508water.root'  # soph-neutMC
+
         self.config_options['pot'          ] = POT
         self.config_options['random_start' ] = '1'
 
@@ -1203,6 +1217,3 @@ class ND280Process(ND280Job):
         for l in glob.glob('*.log'):
             print 'Printing Log File : %s' % (l)
             print ''.join(open(l,'r').readlines())
-
-
-

@@ -25,10 +25,10 @@ class status_wait_times(object):
     kHour = 60 * kMinute
     kDay = 24 * kHour
     kProxyExpirationThreshold = 2 * kMinute
-    kProxyNextCheck = 6 * kMinute
-    kProcessWait = 1 * kMinute
-    kTimeout = 5 * kMinute
-    kJobSubmit = 10 * kSecond
+    kProxyNextCheck = 10 * kMinute
+    kProcessWait = 10 * kSecond
+    kTimeout = 10 * kMinute
+    kJobSubmit = 1 * kSecond
 
 
 class LCG(object):
@@ -55,8 +55,6 @@ class LCG(object):
 
         # new commands go here
         self.bringonline = self.commands['bringonline']
-
-
 
 
 def GetListPopenCommand(command):

@@ -1373,6 +1373,7 @@ class ND280File(object):
         test if the file exists in the location specified.
         Only works with LFC and local files.
         """
+        print 'Creating instance of ND280File for', fn
         # check argument allows for disabling of proxy and env check for speed
         # it is set to false for ND280Dir.ND280File since the ND280Dir
         # constructor does this check too
@@ -1396,25 +1397,56 @@ class ND280File(object):
         self.gridfile = str()
         self.is_a_dir = False
 
-        print 'fn', fn
+        print 'ls ', fn
+        command = 'ls ' + fn
+        rtc = system(command)
         try:
-            if 'lfn:' in fn or 'srm:' in fn or 'guid:' in fn:
+            if 'lfn:' in fn:
                 self.alias = fn
-                # Get the file size from the (formatted) LFC long listing
-                command = 'lfc-ls -ld ' + self.alias.replace('lfn:', '')
-                print 'command', command
+                findCommand = 'dirac-dms-find-lfns --Path={} \"Name={}\"'
+                findCommand = command.format(self.path, self.filename)
                 try:
-                    lines, errors = runLCG(command)
-                    if lines:
-                        self.size = int(lines[0][27:51])
-                        self.is_a_dir = 'd' in lines[0][0]
+                    lines, errors = runDIRAC(findCommand)
+                    if errors:
+                        raise self.Error('Unable to find file '+ fn)
+                    lfn = lines.strip()
+                    sizeCommand = 'dirac-dms-data-size --Unit=MB ' + lfn
+                    lines, errors = runDIRAC(sizeCommand)
+                    if errors:
+                        raise self.Error('Unable to find file size '+ fn)
+                    for a_line in lines:
+                        if '1' in a_line and '|' in a_line:
+                            self.size = int(a_line.split('|')[1] * SE.units(1e3).kMegabyte)
+                    # Set up relative paths and filename
+                    self.path = self.alias.replace('lfn:/grid/', '')
+                    # Do this too in case /grid is not present
+                    self.path = self.alias.replace('lfn:/', '')
+                    self.path = self.path.replace(self.filename, '')
+                    self.gridfile = 'l'
                 except Exception as exception:
                     print str(exception)
-                    print "Couldn't establish filesize"
-                # Set up relative paths and filename
-                self.path = self.alias.replace('lfn:/grid/', '')
-                self.path = self.path.replace(self.filename, '')
-                self.gridfile = 'l'
+                    print "Couldn't find file " + fn
+
+            """
+            Matthew H: Unless someone else knows better, I am removing this
+            """
+            # if 'lfn:' in fn or 'srm:' in fn or 'guid:' in fn:
+            #     self.alias = fn
+            #     # Get the file size from the (formatted) LFC long listing
+            #     command = 'lfc-ls -ld ' + self.alias.replace('lfn:', '')
+            #     print 'command', command
+            #     try:
+            #         lines, errors = runLCG(command)
+            #         if lines:
+            #             self.size = int(lines[0][27:51])
+            #             self.is_a_dir = 'd' in lines[0][0]
+            #     except Exception as exception:
+            #         print str(exception)
+            #         print "Couldn't establish filesize"
+            #     # Set up relative paths and filename
+            #     self.path = self.alias.replace('lfn:/grid/', '')
+            #     self.path = self.path.replace(self.filename, '')
+            #     self.gridfile = 'l'
             else:
                 # This file is not registered on the GRID, is it local?
                 command = 'ls ' + fn
@@ -1439,8 +1471,8 @@ and does not exist on the local system ' + fn)
             self.filetype = 'c'
         else:
             self.filetype = 'o'
-
         print('soph - ND280GRID.py - ND280File  3- self.filename = ' + self.filename )
+
 
     def __del__(self):
         """ Clean up after the object. If you have requested a turl
@@ -1782,8 +1814,7 @@ On a GRID node? No=Don\'t Worry, yes=WTF')
     ######################## Methods for gridlocally resident files ########################################################
     ########################################################################################################################
 
-    # def Register(self, lfn='', srm='srm-t2k.gridpp.rl.ac.uk', timeout=300):
-    def Register(self, lfn=''):
+    def Register(self, lfn='', srm='srm-t2k.gridpp.rl.ac.uk', timeout=300):
         """
         For local files first copy to grid.
              - lfn=the LFC directory wished for the file
@@ -1801,7 +1832,7 @@ On a GRID node? No=Don\'t Worry, yes=WTF')
         _, dlfn = lfn.split("lfn:/grid", 1)
         dlfn = dlfn + self.filename
 
-        diracCMDFMT = 'dirac_add_file -ddd %s %s %s'
+        diracCMDFMT = 'dirac-dms-add-file -ddd %s %s %s'
         SE = 'UKI-LT2-QMUL2-disk'
         diracCMD = diracCMDFMT % (dlfn, self.filename, SE)
         _, errors = runDIRAC(diracCMD)

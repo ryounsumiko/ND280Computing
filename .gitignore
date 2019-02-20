@@ -59,7 +59,11 @@ Thumbs.db
 *.pyc
 *.pyo
 
-
 # WCSim #
 #########
 OD.mac
+
+# Virtualenv #
+##############
+venv
+virtualenv

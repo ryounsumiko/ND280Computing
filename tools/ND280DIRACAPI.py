@@ -78,26 +78,6 @@ class ND280DIRACJobDescription(object):
         if len(bannedSite) > 0:
             self.bannedSites.append(bannedSite)
 
-    def BanAllVACSites(self):
-        """
-        As of July 2018, jobs submitted to these VAC sites were failing
-        These are sites where the SL6 to SL7 change over has already happened,
-        but  jobs are running in SL6 containers. The idea is that as users we
-        should not have to do anything extra for our jobs to run at these
-        sites, however I've been told the VAC sites are using a grid-bundle
-        that doesn't include LFC. They will rectify this.  In the meantime
-        could people please avoid submitting to the VAC sites till the problem
-        is fixed.
-        """
-        self.bannedSites.append("VAC.UKI-NORTHGRID-MAN-HEP.uk")
-        self.bannedSites.append("VAC.UKI-LT2-RHUL.uk")
-        self.bannedSites.append("VAC.UKI-LT2-UCL-HEP.uk")
-        self.bannedSites.append("VAC.UKI-NORTHGRID-LIV-HEP.uk")
-        self.bannedSites.append("VAC.UKI-SCOTGRID-GLASGOW.uk")
-        self.bannedSites.append("VAC.UKI-SOUTHGRID-BHAM-HEP.uk")
-        self.bannedSites.append("VAC.UKI-SOUTHGRID-CAM-HEP.uk")
-        self.bannedSites.append("VAC.UKI-SOUTHGRID-OX-HEP.uk")
-
     def SetupDIRACAPIInfo(self):
         """Create a Raw data or MC processing jdl file.
            The one and only argument is the event type to
@@ -177,16 +157,16 @@ logFile=\"%s.log\")\n' % (self.executable, self.argument, self.scriptname))
                 scriptfile.write('diracJob.setCPUTime(%d)\n' % tlim)
             scriptfile.write('\n')
 
-            # banned sites
-            scriptfile.write('diracJob.setBannedSites([\"%s\"' % self.bannedSites[0])
-            for i_banned_site in range(1, len(self.bannedSites)):
-                scriptfile.write(',\"%s\"' % self.bannedSites[i_banned_site])
-            scriptfile.write('])\n')
+            # # banned sites
+            # scriptfile.write('diracJob.setBannedSites([\"%s\"' % self.bannedSites[0])
+            # for i_banned_site in range(1, len(self.bannedSites)):
+            #     scriptfile.write(',\"%s\"' % self.bannedSites[i_banned_site])
+            # scriptfile.write('])\n')
 
             # submit the job
             scriptfile.write('print \"submitting job %s\"\n' % (self.scriptname))
             scriptfile.write('dirac = Dirac()\n')
-            scriptfile.write('result = dirac.submit(diracJob)\n')
+            scriptfile.write('result = dirac.submitJob(diracJob)\n')
             scriptfile.write('print \"Submission Result: \", result\n')
             scriptfile.write('\n')
 
@@ -215,7 +195,7 @@ logFile=\"%s.log\")\n' % (self.executable, self.argument, self.scriptname))
 
 
 def GetJobIDFromSubmit(submitResult):
-    """When the DIRAC.submit() method is called, use this
+    """When the DIRAC.submitJob() method is called, use this
        method to extract the JodID STRING from the dictionary
        example {...stuff..., 'Value': 8765031, 'JobID': 8765031}
     """

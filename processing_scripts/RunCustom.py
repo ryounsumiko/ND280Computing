@@ -67,10 +67,6 @@ parser.add_option("--test", default=False,
 parser.add_option("-s", "--sandbox", default='',
                   help="Configuration files to add to the InputSandbox, comma delimited")
 
-parser.add_option("-V", "--banVAC", default=False, dest="banVAC",
-                  help="Ban all VAC sites, see why in ND280DIRACAPI.py",
-                  action='store_true')
-
 (options, args) = parser.parse_args()
 ##########################################################################
 
@@ -160,8 +156,6 @@ for a_file in filelist:
         if len(sandbox) > 0:
             for in_file in sandbox:
                 dirac_proc.jd.inputSandbox.append(in_file.strip())
-        if options.banVAC:
-            dirac_proc.jd.BanAllVACSites()
         dirac_script = '%s.py' % dirac_proc.jd.scriptname
         if os.path.isfile(dirac_script):
             os.system('rm -f %s' % dirac_script)

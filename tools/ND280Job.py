@@ -235,9 +235,7 @@ class ND280Job(object):
 
         for log_file in glob.glob('*.log'):
             f = ND280File(log_file)
-            # if not f.Register(curr_export_dir,srm):  # soph-quick-dirty-dfc-fix
-              #   sys.exit('Log file missing from output')  # soph-quick-dirty-dfc-fix
-            f.Register(curr_export_dir,srm) #:  # soph-quick-dirty-dfc-fix
+            f.Register(curr_export_dir, srm)
 
         return 0
 

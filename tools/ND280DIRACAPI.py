@@ -8,6 +8,7 @@ import os
 from os import getenv
 from os.path import isfile, join
 import ND280GRID
+import ND280Computing
 from ND280Computing import NONRUNND280JOBS
 
 
@@ -192,6 +193,129 @@ logFile=\"%s.log\")\n' % (self.executable, self.argument, self.scriptname))
         except self.Error as error:
             print str(error)
             print 'Unable to close job file'
+
+
+class DMSBase(object):
+    """dirac data management commands with a 10minute timeout"""
+
+    def __init__(self, timeout=ND280Computing.StatusWait().kTimeout):
+        self.timeout = timeout
+        self.command = 'dirac-cmd'
+        self.args = dict()
+        self.inputs = list()
+
+    def EnableDebug(enable=True):
+        """Enable or disable debug"""
+        if enable:
+            self.args['-ddd'] = ''
+        elif '-ddd' in self.args:
+            del self.args['-ddd']
+
+    def Run(self, PrintCommand=True):
+        """almost equivalent to __str__, but with errors and multiple calls"""
+        if PrintCommand:
+            print in_command
+
+        # Limit the execution time
+        # - note this only clocks CPU time so zombie
+        # processes will last forever..
+        SelfCommand = self.__str__()
+        command = 'ulimit -t ' + str(self.timeout) + '\n'
+        command = command + SelfCommand
+
+        # try the command a few times because failures happen on the GRID
+        print datetime.now()
+        for ii in range(3):
+            print 'Try %d of \"%s\" with %d timeout' % (ii, SelfCommand, self.timeout)
+            line, errors = ND280Computing.GetListPopenCommand(command)
+            if errors:
+                print 'ERROR!'
+                print '\n'.join(errors)
+                time.sleep(self.timeout)
+                continue
+            else:
+                break
+        # Removal of newlines, carriage returns
+        lines = [l.strip() for l in lines]
+        errors = [e.strip() for e in errors]
+
+        print 'returned'
+        return lines, errors
+
+    def __str__(self):
+        RetStr = str(self.command)
+        for key, value in self.args.iteritems():
+            if '--' in key:
+                if '=' in key:
+                    RetStr = RetStr + ' {}{}'.format(key, value)
+                else:
+                    RetStr = RetStr + ' {}={}'.format(key, value)
+            elif '-' in key:
+                RetStr = RetStr + ' {} {}'.format(key, value)
+            else:
+                RetStr = RetStr + ' -{} {}'.format(key, value)
+        if type(inputs) is list:
+            for input in self.inputs:
+                RetStr = RetStr + ' {}'.format(input)
+        elif type(inputs) is str:
+            RetStr = RetStr + input
+        return RetStr
+
+
+class DMSFindLFN(DMSBase):
+    """
+    DIRAC command to find a file in its file catalogue
+    """
+
+    def __init__(self, LFN='None', path=''):
+        super(DMSFindLFN, self).__init__()
+        self.command = 'dirac-dms-find-LFNs'
+        if type(path) == str and len(path) == 0:
+            path = LFN
+            LFN.split('/')[len(LFN.split('/'))-1]
+            path = path.replace(LFN, '').rstrip('/')
+        self.inputs.append('Name={}'.format(LFN))
+        self.args['--Path='] = path
+
+
+class DMSRemoveLFN(DMSBase):
+    """
+    Remove the given file from the File Catalog and from the storage
+    """
+
+    def __init__(self, LFN):
+        super(DMSRemoveLFN, self).__init__()
+        self.command = 'dirac-dms-remove-files'
+        if type(LFN) is str:
+            self.inputs.append(LFN)
+        if type(LFN) is list:
+            for FileName in LFN:
+                self.inputs.append(FileName)
+
+
+class DMSAddFile(DMSBase):
+    """
+    Add file to DFC. Note that use of default args is to
+    allow calling easier to read
+    """
+
+    def __init__(self, LFN='', FileName='', SE=''):
+        super(DMSAddFile, self).__init__()
+        self.command = 'dirac-dms-add-file'
+        self.inputs.append(LFN)
+        self.inputs.append(FileName)
+        self.inputs.append(SE)
+
+
+class DMSListReplicas(DMSBase):
+    """
+    List replicas for a LFN
+    """
+
+    def __init__(self, LFN):
+        super(DMSAddFile, self).__init__()
+        self.command = 'dirac-dms-lfn-replicas'
+        self.inputs.append(LFN)
 
 
 def GetJobIDFromSubmit(submitResult):

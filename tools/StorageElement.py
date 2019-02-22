@@ -7,6 +7,7 @@ from os.path import join
 
 import ND280GRID
 import ND280Computing as ND280Comp
+import ND280DIRACAPI as ND280DIRAC
 
 
 class units(object):
@@ -183,56 +184,79 @@ def GetTopLevelDir(storageElement):
     top_level_dir = str()
 
     # Use a local test file
-    testFileName = 'lcgCrTestfile.'+str(os.getpid())
+    # testFileName = 'lcgCrTestfile.'+str(os.getpid())
+    testFileName = 'DMSTestfile.'+str(os.getpid())
     command = "dd if=/dev/zero of="+testFileName+" bs=1048576 count=1"
     print command
     system(command)
 
     # Make sure test file is not already registered on LFC
-    command = join("lcg-del --vo t2k.org \
--a lfn:/grid/t2k.org/test", testFileName)
-    command += " </dev/null >/dev/null 2>&1"
-    system(command)
+    # command = join("lcg-del --vo t2k.org -a lfn:/grid/t2k.org/test", testFileName)
+    # command += " </dev/null >/dev/null 2>&1"
+    # lcg- -> dirac-dms
+    DMSRemoveTest = ND280DIRAC.DMSRemoveLFN(join("/t2k.org/test",testFileName))
+    DMSRemoveTest.inputs.append("</dev/null >/dev/null 2>&1")
+    DMSRemoveTest.Run()
 
     try:
         # Register test file on storage element
         # using relative path name, returns GUID
 
-        # Entry in LFC in the test directory of /grid/t2k.org/
-        command = "lcg-cr --vo t2k.org -d " + storageElement
-        command += " -P " + testFileName
-        command += join(" -l lfn:/grid/t2k.org/test", testFileName)
-        command += " file:" + testFileName
-        lines, errors = ND280GRID.runLCG(command, is_pexpect=False)
+        # # Entry in LFC in the test directory of /grid/t2k.org/
+        # command = "lcg-cr --vo t2k.org -d " + storageElement
+        # command += " -P " + testFileName
+        # command += join(" -l lfn:/grid/t2k.org/test", testFileName)
+        # command += " file:" + testFileName
+        # lines, errors = ND280GRID.runLCG(command, is_pexpect=False)
+        # if errors:
+        #     raise Exception
+        # lcg- -> dirac-dms
+        inLFN = join('/t2k.org/test', testFileName)
+        DMSAddTestFile = DMSAddFile(LFN=inLFN, FileName=testFileName,
+                                    SE=storageElement)
+        DMSAddTestFile.EnableDebug()
+        _, errors = DMSAddFile.Run()
         if errors:
             raise Exception
 
-        # Use GUID to retrieve data path to
+        # Use# GUID to retrieve data path to
         # test file, and hence top level directory
-        command = "lcg-lr --vo t2k.org " + ND280GRID.rmNL(lines[0])
-        lines, errors = ND280GRID.runLCG(command, is_pexpect=False)
+        # command = "lcg-lr --vo t2k.org " + ND280GRID.rmNL(lines[0])
+        # lines, errors = ND280GRID.runLCG(command, is_pexpect=False)
+        # if errors:
+        #     raise Exception
+        # lcg- -> dirac-dms
+        TestFileReplicas = ND280DIRAC.DMSListReplicas(inLFN)
+        TestFileReplicas.EnableDebug()
+        lines, errors = TestFileReplicas.Run()
         if errors:
             raise Exception
+        lines = lines.split('\n')
+        if len(lines) < 3:
+            surl = ''
+        else:
+            surl = lines[2]
 
-        surl = lines[0]
         top_level_dir = ND280GRID.rmNL(surl.replace(testFileName, ''))
 
-    # Exception handles access errors, bit of a cludge
     except Exception as exception:
-        # Carry on regardless, get data path with error
-        print str(exception)
         print 'Exception: ' + ND280GRID.rmNL(errors[0])
-        top_level_dir = ND280GRID.rmNL(errors[0].split('lcgCr')[0])
+        print 'Exception type', str(exception)
+        print 'Please implement a solution!'
+        # top_level_dir = ND280GRID.rmNL(errors[0].split('lcgCr')[0])
 
-        command = 'lcg-ls --vo t2k.org ' + top_level_dir + testFileName
-        lines, errors = ND280GRID.runLCG(command, is_pexpect=False)
-        if lines:
-            command = command.replace('lcg-ls', 'lcg-del -l')
-            ND280GRID.runLCG(command, is_pexpect=False)
+        # command = 'lcg-ls --vo t2k.org ' + top_level_dir + testFileName
+        # lines, errors = ND280GRID.runLCG(command, is_pexpect=False)
+        # if lines:
+        #     command = command.replace('lcg-ls', 'lcg-del -l')
+        #     ND280GRID.runLCG(command, is_pexpect=False)
 
     # Clean up, don't worry about errors
     system("rm -f " + testFileName)
-    system("lcg-del --vo t2k.org -a lfn:/grid/t2k.org/test/" + testFileName)
+    # system("lcg-del --vo t2k.org -a lfn:/grid/t2k.org/test/" + testFileName)
+
+    DMSRemoveTest = ND280DIRAC.DMSRemoveLFN(join("/t2k.org/test",testFileName))
+    DMSRemoveTest.Run()
 
     # Last ditch, use se_roots but truncate nd280/ subdirectory
     if 'error' in top_level_dir or 'srm://' not in top_level_dir:

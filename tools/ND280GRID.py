@@ -19,8 +19,9 @@ import time
 import traceback
 
 import ND280Computing as ND280Comp
-from ND280Computing import status_wait_times, status_flags, VO
+from ND280Computing import StatusWait, StatusFlags, VO
 from ND280Computing import NONRUNND280JOBS
+import ND280DIRACAPI as ND280DIRAC
 import StorageElement as SE
 
 # FTS2 transfer statuses:
@@ -112,7 +113,7 @@ def processWait(processList=[], limit=0):
 
         print '%3d active processes ... \
 sleeping until there are < %d ...' % (nActive, limit)
-        time.sleep(status_wait_times.kProcessWait)
+        time.sleep(StatusWait.kProcessWait)
 
     return
 
@@ -120,73 +121,7 @@ sleeping until there are < %d ...' % (nActive, limit)
 def GetTopLevelDir(storageElement):
     """ Get top level (../t2k.org/) directory from storage element
     Not perfect, some read/write issues on some SEs, handled by exception """
-    print 'GetTopLevelDir'
-
-    # Default empty string
-    top_level_dir = str()
-
-    # Use a local test file
-    testFileName = 'lcgCrTestfile.'+str(getpid())
-    command = "dd if=/dev/zero of="+testFileName+" bs=1048576 count=1"
-    print command
-    system(command)
-
-    # Make sure test file is not already registered on LFC
-    command = join("lcg-del --vo t2k.org \
--a lfn:/grid/t2k.org/test", testFileName)
-    command += " </dev/null >/dev/null 2>&1"
-    system(command)
-
-    try:
-        # Register test file on storage element
-        # using relative path name, returns GUID
-
-        # Entry in LFC in the test directory of /grid/t2k.org/
-        command = "lcg-cr --vo t2k.org -d " + storageElement
-        command += " -P " + testFileName
-        command += join(" -l lfn:/grid/t2k.org/test", testFileName)
-        command += " file:" + testFileName
-        lines, errors = runLCG(command, is_pexpect=False)
-        if errors:
-            raise Exception
-
-        # Use GUID to retrieve data path to
-        # test file, and hence top level directory
-        command = "lcg-lr --vo t2k.org " + rmNL(lines[0])
-        lines, errors = runLCG(command, is_pexpect=False)
-        if errors:
-            raise Exception
-
-        surl = lines[0]
-        top_level_dir = rmNL(surl.replace(testFileName, ''))
-
-    # Exception handles access errors, bit of a cludge
-    except Exception as exception:
-        # Carry on regardless, get data path with error
-        print str(exception)
-        print 'Exception: ' + rmNL(errors[0])
-        top_level_dir = rmNL(errors[0].split('lcgCr')[0])
-
-        command = 'lcg-ls --vo t2k.org ' + top_level_dir + testFileName
-        lines, errors = runLCG(command, is_pexpect=False)
-        if lines:
-            command = command.replace('lcg-ls', 'lcg-del -l')
-            runLCG(command, is_pexpect=False)
-
-    # Clean up, don't worry about errors
-    system("rm -f " + testFileName)
-    system("lcg-del --vo t2k.org -a lfn:/grid/t2k.org/test/" + testFileName)
-
-    # Last ditch, use se_roots but truncate nd280/ subdirectory
-    if 'error' in top_level_dir or 'srm://' not in top_level_dir:
-        top_level_dir = se_roots[storageElement].replace('nd280/', '')
-
-    # Make sure there is only one trailing slash
-    top_level_dir = top_level_dir.rstrip('//')
-    top_level_dir += '/'
-
-    print top_level_dir
-    return top_level_dir
+    return SE.GetTopLevelDir()
 
 
 def GetListOfCEs():
@@ -395,9 +330,16 @@ def GetTransferStatus(transfer='', SOURCE='', DEST=''):
         return Fail
 
 
-def runLCG(in_command, in_timeout=status_wait_times.kTimeout, is_pexpect=True):
-    """ The GRID is flaky, timeout commands or wrap them in pexpect"""
+def runLCG(in_command, in_timeout=StatusWait.kTimeout, is_pexpect=True):
+    """
+    DEPRECATED: USE run or runDIRAC for dirac specific commands
+     The GRID is flaky, timeout commands or wrap them in pexpect
+    """
 
+    print "################################"
+    print " DEPRECATION WARNING"
+    print " Running runLCG which deprecated"
+    print "################################"
     print in_command
 
     lines = list()
@@ -469,7 +411,7 @@ def runLCG(in_command, in_timeout=status_wait_times.kTimeout, is_pexpect=True):
             if pi == 0:
                 print 'Timeout! ('+str(in_timeout)+'s)'
                 tries += 1
-                time.sleep(status_wait_times.kMinute)
+                time.sleep(StatusWait.kMinute)
                 continue
             # if pi == 1:
             #     lines = output
@@ -494,7 +436,7 @@ def runLCG(in_command, in_timeout=status_wait_times.kTimeout, is_pexpect=True):
             #     print '\n'.join(output)
             #     errors.append('ERROR!'+repr(output))
             #     tries += 1
-            #     time.sleep(status_wait_times.kMinute)
+            #     time.sleep(StatusWait.kMinute)
             #     continue
             else:
                 break
@@ -512,7 +454,7 @@ def runLCG(in_command, in_timeout=status_wait_times.kTimeout, is_pexpect=True):
         # Limit the execution time
         # - note this only clocks CPU time so zombie
         # processes will last forever..
-        command = 'ulimit -t ' + str(max(status_wait_times.kTimeout,
+        command = 'ulimit -t ' + str(max(StatusWait.kTimeout,
                                      in_timeout)) + '\n' + in_command
 
         # try the command a few times because failures happen on the GRID
@@ -529,7 +471,7 @@ def runLCG(in_command, in_timeout=status_wait_times.kTimeout, is_pexpect=True):
                 continue
             else:
                 break
-        # Removal of newlines, carriage retruns
+        # Removal of newlines, carriage returns
         lines = [l.strip() for l in lines]
         errors = [e.strip() for e in errors]
 
@@ -538,15 +480,14 @@ def runLCG(in_command, in_timeout=status_wait_times.kTimeout, is_pexpect=True):
 
 
 
-def runDIRAC(in_command, in_timeout=status_wait_times.kTimeout):
+def runDIRAC(in_command, in_timeout=ND280Comp.StatusWait().kTimeout):
     """ DIRAC equiv implementation of runLCG without pexpect"""
     print in_command
 
     # Limit the execution time
     # - note this only clocks CPU time so zombie
     # processes will last forever..
-    command = 'ulimit -t ' + str(max(status_wait_times.kTimeout,
-                                 in_timeout)) + '\n' + in_command
+    command = 'ulimit -t ' + str(in_timeout) + '\n' + in_command
 
     # try the command a few times because failures happen on the GRID
     print datetime.now()
@@ -562,7 +503,7 @@ def runDIRAC(in_command, in_timeout=status_wait_times.kTimeout):
             continue
         else:
             break
-    # Removal of newlines, carriage retruns
+    # Removal of newlines, carriage returns
     lines = [l.strip() for l in lines]
     errors = [e.strip() for e in errors]
 
@@ -795,7 +736,7 @@ def runFTSMulti(srm, original_filename, copy_filename,
                         break
 
                     # If not, sleep
-                    time.sleep(status_wait_times.kProcessWait)
+                    time.sleep(StatusWait.kProcessWait)
 
             # Now, submit the transfer
             command = 'fts-transfer-submit --verbose -K -o'
@@ -1004,9 +945,9 @@ def GetDiracProxyTimeLeft():
                 continue
             time_string = a_line.split('timeleft')[1]
             dummy, hr, minutes, seconds = time_string.split(':')
-            timeleft = int(hr) * status_wait_times.kHour
-            timeleft += int(minutes) * status_wait_times.kMinute
-            timeleft += int(seconds) * status_wait_times.kSecond
+            timeleft = int(hr) * StatusWait.kHour
+            timeleft += int(minutes) * StatusWait.kMinute
+            timeleft += int(seconds) * StatusWait.kSecond
             break
 
     return timeleft, errors
@@ -1019,14 +960,14 @@ def IsValidProxy():
     # if dirac proxy is valid, don't check voms
     print 'Valid DIRAC proxy?'
     dirac_proxy = CheckDiracProxy()
-    if dirac_proxy is status_flags.kProxyValid:
+    if dirac_proxy == StatusFlags.kProxyValid:
         return True
 
     print 'NO valid DIRAC proxy'
     # check voms now
     print 'Valid VOMS proxy?'
     voms_proxy = CheckVomsProxy()
-    if voms_proxy is status_flags.kProxyValid:
+    if voms_proxy == StatusFlags.kProxyValid:
         return True
 
     # both proxies are invalid
@@ -1042,11 +983,11 @@ def CheckDiracProxy():
 
     print str(timeleft) + ' seconds remaining'
 
-    if timeleft < status_wait_times.kProxyExpirationThreshold or errors:
+    if timeleft < StatusWait.kProxyExpirationThreshold or errors:
 
         # Wait a few minutes for renewal
         print 'Waiting a few minutes for proxy renewal'
-        time.sleep(status_wait_times.kProxyNextCheck)
+        time.sleep(StatusWait.kProxyNextCheck)
 
         # Try again
         timeleft, errors = GetDiracProxyTimeLeft()
@@ -1054,11 +995,11 @@ def CheckDiracProxy():
         # If still no proxy return invalid status
         if errors:
             print '\n'.join(errors)
-        if timeleft < status_wait_times.kProxyExpirationThreshold:
-            return status_flags.kProxyInvalid
+        if timeleft < StatusWait.kProxyExpirationThreshold:
+            return StatusFlags.kProxyInvalid
 
     # Proxy is valid
-    return status_flags.kProxyValid
+    return StatusFlags.kProxyValid
 
 
 def CheckVomsProxy():
@@ -1079,11 +1020,11 @@ def CheckVomsProxy():
         if lines[0].isdigit():
             timeleft = int(lines[0])
 
-    if errors or timeleft < status_wait_times.kProxyExpirationThreshold:
+    if errors or timeleft < StatusWait.kProxyExpirationThreshold:
 
         # Wait a few minutes for renewal
         print 'Waiting a few minutes for proxy renewal'
-        time.sleep(status_wait_times.kProxyNextCheck)
+        time.sleep(StatusWait.kProxyNextCheck)
 
         # Try again
         lines, errors = runLCG(command)
@@ -1097,11 +1038,11 @@ def CheckVomsProxy():
         # If still no proxy return 1
         if errors:
             print '\n'.join(errors)
-        if timeleft < status_wait_times.kProxyExpirationThreshold:
-            return status_flags.kProxyInvalid
+        if timeleft < StatusWait.kProxyExpirationThreshold:
+            return StatusFlags.kProxyInvalid
 
     # Proxy is valid (0)
-    return status_flags.kProxyValid
+    return StatusFlags.kProxyValid
 
 
 def SetGridEnv():
@@ -1401,31 +1342,38 @@ class ND280File(object):
         command = 'ls ' + fn
         rtc = system(command)
         try:
-            if 'lfn:' in fn:
+            if 'lfn:' in fn or 'LFN:' in fn:
                 self.alias = fn
-                findCommand = 'dirac-dms-find-lfns --Path={} \"Name={}\"'
-                findCommand = command.format(self.path, self.filename)
-                try:
-                    lines, errors = runDIRAC(findCommand)
-                    if errors:
-                        raise self.Error('Unable to find file '+ fn)
-                    lfn = lines.strip()
-                    sizeCommand = 'dirac-dms-data-size --Unit=MB ' + lfn
-                    lines, errors = runDIRAC(sizeCommand)
-                    if errors:
-                        raise self.Error('Unable to find file size '+ fn)
-                    for a_line in lines:
-                        if '1' in a_line and '|' in a_line:
-                            self.size = int(a_line.split('|')[1] * SE.units(1e3).kMegabyte)
-                    # Set up relative paths and filename
-                    self.path = self.alias.replace('lfn:/grid/', '')
-                    # Do this too in case /grid is not present
-                    self.path = self.alias.replace('lfn:/', '')
-                    self.path = self.path.replace(self.filename, '')
-                    self.gridfile = 'l'
-                except Exception as exception:
-                    print str(exception)
-                    print "Couldn't find file " + fn
+                FormattedName = self.filename.replace('lfn:', '').replace('LFN:', '')
+                FindDIRACFile = ND280DIRAC.DMSFindLFN(LFN=FormattedName)
+                _, errors = FindDIRACFile.Run()
+                # findCommand = 'dirac-dms-find-lfns --Path=%s \"Name=%s\"'
+                # findCommand = findCommand % (self.path, FormattedName)
+                lines, errors = runDIRAC(findCommand)
+                if errors:
+                    raise self.Error('Unable to find file '+ fn)
+                lfn = lines.strip()
+                sizeCommand = 'dirac-dms-data-size --Unit=MB ' + lfn
+                lines, errors = runDIRAC(sizeCommand)
+                if errors:
+                    raise self.Error('Unable to find file size '+ fn)
+                for a_line in lines:
+                    if '1' in a_line and '|' in a_line:
+                        self.size = int(a_line.split('|')[1] * SE.units(1e3).kMegabyte)
+                # Set up relative paths and filename
+                self.path = self.alias.replace('lfn:/grid/', '')
+                # Do this too in case /grid is not present
+                self.path = self.alias.replace('lfn:/', '')
+                self.path = self.path.replace(self.filename, '')
+                self.gridfile = 'l'
+            else:
+                # This file is not registered on the GRID, is it local?
+                command = 'ls ' + fn
+                rtc = system(command)
+                if rtc:
+                    raise self.Error('This file is not registered on the LFC \
+and does not exist on the local system ' + fn)
+                self.gridfile = ''
 
             """
             Matthew H: Unless someone else knows better, I am removing this
@@ -1447,17 +1395,9 @@ class ND280File(object):
             #     self.path = self.alias.replace('lfn:/grid/', '')
             #     self.path = self.path.replace(self.filename, '')
             #     self.gridfile = 'l'
-            else:
-                # This file is not registered on the GRID, is it local?
-                command = 'ls ' + fn
-                rtc = system(command)
-                if rtc:
-                    raise self.Error('This file is not registered on the LFC \
-and does not exist on the local system ' + fn)
-                self.gridfile = ''
         except Exception as exception:
             print str(exception)
-            raise self.Error('Unable to establish file type of '+fn)
+            raise self.Error('Unable to establish file in DFC or locally ' + fn)
 
         # File type, p=processed, r=raw, m=MC, o=other, n=none
         if 'oa_nd_' in self.filename:
@@ -1776,8 +1716,8 @@ On a GRID node? No=Don\'t Worry, yes=WTF')
                                      original_filename)
                 else:
                     if 'ONLINE' not in lines[0].split()[5]:
-                        runLCG(ND280Comp.LCG(2*status_wait_times.kHour).bringonline + original_filename,
-                               in_timeout=2*status_wait_times.kHour, is_pexpect=False)
+                        runLCG(ND280Comp.LCG(2*StatusWait.kHour).bringonline + original_filename,
+                               in_timeout=2*StatusWait.kHour, is_pexpect=False)
 
             # Use the FTS service 23-11-10
             return runFTSMulti(srm, original_filename, copy_filename,
@@ -1856,7 +1796,7 @@ class ND280Dir(object):
     with caution.
     """
     def __init__(self, dir, skipFailures=False,
-                 ls_timeout=status_wait_times.kTimeout):
+                 ls_timeout=StatusWait.kTimeout):
         """ Initialisation of ND280Dir object
 
         self.dir: str The path of this directory

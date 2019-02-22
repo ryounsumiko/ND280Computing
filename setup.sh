@@ -146,23 +146,23 @@ arcJobQuery()
 }
 
 if [ -z "$DIRAC" ]; then
-    export PYTHONPATH=${PYTHONPATH}:${DIRAC}/Linux_x86_64_glibc-2.12/lib/python2.6/site-packages
-else
     echo "DIRAC package must be installed for ND280Computing to work!"
     echo "Please see https://gridpp.ac.uk/wiki/Quick_Guide_to_Dirac to install DIRAC"
+else
+    export PYTHONPATH=${PYTHONPATH}:${DIRAC}/Linux_x86_64_glibc-2.12/lib/python2.6/site-packages
+    if [ -z "$REQUESTS_CA_BUNDLE" ]; then
+        echo "unset REQUESTS_CA_BUNDLE"
+        unset REQUESTS_CA_BUNDLE
+    fi
+
+    if [ -z "$SSL_CERT_DIR" ]; then
+        echo "unset SSL_CERT_DIR"
+        unset SSL_CERT_DIR
+    fi
+
+    if [ -z "$PYTHONOPTIMIZE" ]; then
+        echo "unset PYTHONOPTIMIZE"
+        unset PYTHONOPTIMIZE
+    fi
 fi
 
-if [ -z "$REQUESTS_CA_BUNDLE" ]; then
-    echo "unset REQUESTS_CA_BUNDLE"
-    unset REQUESTS_CA_BUNDLE
-fi
-
-if [ -z "$SSL_CERT_DIR" ]; then
-    echo "unset SSL_CERT_DIR"
-    unset SSL_CERT_DIR
-fi
-
-if [ -z "$PYTHONOPTIMIZE" ]; then
-    echo "unset PYTHONOPTIMIZE"
-    unset PYTHONOPTIMIZE
-fi

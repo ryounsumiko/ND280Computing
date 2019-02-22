@@ -12,13 +12,13 @@ ND280DETECTORS = ['ECAL', 'FGD', 'ND280', 'P0D', 'SMRD', 'TPC']
 NONRUNND280JOBS = ['HADD', 'FlatTree', 'MiniTree']
 
 
-class status_flags(object):
+class StatusFlags(object):
     """a namespace for status flags"""
     kProxyValid = 0
     kProxyInvalid = 1
 
 
-class status_wait_times(object):
+class StatusWait(object):
     """a namespace for common wait times"""
     kSecond = 1
     kMinute = 60 * kSecond
@@ -34,7 +34,7 @@ class status_wait_times(object):
 class LCG(object):
     """lcg commands with timeouts set at start"""
 
-    def __init__(self, timeout=10*status_wait_times.kMinute):
+    def __init__(self, timeout=10*StatusWait.kMinute):
         self.commands = dict()
         self.timeout = None
 

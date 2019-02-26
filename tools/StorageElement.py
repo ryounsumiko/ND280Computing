@@ -13,25 +13,27 @@ import ND280DIRACAPI as ND280DIRAC
 class units(object):
     """stores unit conversions for bytes"""
 
-    def __init__(self, kilobyte=1.0):
-        self.RescaleKilobyte(kilobyte)
+    def __init__(self, kb=1.0):
+        self.RescaleKilobyte(kb)
 
-    def RescaleKilobyte(self, kilobyte=1.0):
+    def RescaleKilobyte(self, kb=1.0):
         """
         Set the scale for any unit storage
         If you want byte to be size 1, then Rescale(1000.)
         """
 
-        self.kKilobyte = kilobyte
+        self.kKilobyte = kb
         # decimal units
         self.kMegabyte = 1.0e-03 * self.kKilobyte
         self.kGigabyte = 1.0e-03 * self.kMegabyte
         self.kTerabyte = 1.0e-03 * self.kGigabyte
+        self.kPetabyte = 1.0e-03 * self.kTerabyte
         self.kByte = 1.0e+03 * self.kKilobyte
         self.kKB = self.kKilobyte
         self.kMB = self.kMegabyte
         self.kGB = self.kGigabyte
         self.kTB = self.kTerabyte
+        self.kPB = self.kPetabyte
 
         # powers of 2
         self.kKibibyte = 1024 * self.kByte
@@ -191,26 +193,11 @@ def GetTopLevelDir(storageElement):
     system(command)
 
     # Make sure test file is not already registered on LFC
-    # command = join("lcg-del --vo t2k.org -a lfn:/grid/t2k.org/test", testFileName)
-    # command += " </dev/null >/dev/null 2>&1"
-    # lcg- -> dirac-dms
     DMSRemoveTest = ND280DIRAC.DMSRemoveLFN(join("/t2k.org/test",testFileName))
     DMSRemoveTest.inputs.append("</dev/null >/dev/null 2>&1")
     DMSRemoveTest.Run()
 
     try:
-        # Register test file on storage element
-        # using relative path name, returns GUID
-
-        # # Entry in LFC in the test directory of /grid/t2k.org/
-        # command = "lcg-cr --vo t2k.org -d " + storageElement
-        # command += " -P " + testFileName
-        # command += join(" -l lfn:/grid/t2k.org/test", testFileName)
-        # command += " file:" + testFileName
-        # lines, errors = ND280GRID.runLCG(command, is_pexpect=False)
-        # if errors:
-        #     raise Exception
-        # lcg- -> dirac-dms
         inLFN = join('/t2k.org/test', testFileName)
         DMSAddTestFile = DMSAddFile(LFN=inLFN, FileName=testFileName,
                                     SE=storageElement)
@@ -221,14 +208,9 @@ def GetTopLevelDir(storageElement):
 
         # Use# GUID to retrieve data path to
         # test file, and hence top level directory
-        # command = "lcg-lr --vo t2k.org " + ND280GRID.rmNL(lines[0])
-        # lines, errors = ND280GRID.runLCG(command, is_pexpect=False)
-        # if errors:
-        #     raise Exception
-        # lcg- -> dirac-dms
         TestFileReplicas = ND280DIRAC.DMSListReplicas(inLFN)
         TestFileReplicas.EnableDebug()
-        lines, errors = TestFileReplicas.Run()
+        lines, errors = TestFileReplicas.Run(PrintCommand=True)
         if errors:
             raise Exception
         lines = lines.split('\n')
@@ -253,10 +235,9 @@ def GetTopLevelDir(storageElement):
 
     # Clean up, don't worry about errors
     system("rm -f " + testFileName)
-    # system("lcg-del --vo t2k.org -a lfn:/grid/t2k.org/test/" + testFileName)
 
-    DMSRemoveTest = ND280DIRAC.DMSRemoveLFN(join("/t2k.org/test",testFileName))
-    DMSRemoveTest.Run()
+    DMSRemoveTestFile = ND280DIRAC.DMSRemoveLFN(join("/t2k.org/test",testFileName))
+    DMSRemoveTestFile.Run()
 
     # Last ditch, use se_roots but truncate nd280/ subdirectory
     if 'error' in top_level_dir or 'srm://' not in top_level_dir:

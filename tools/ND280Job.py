@@ -25,6 +25,7 @@ from ND280GRID import ND280File
 from ND280GRID import runLCG
 from ND280Configs import ND280Config
 from ND280Software import ND280Software
+import ND280DIRACAPI as ND280DIRAC
 
 
 class ND280Job(object):
@@ -179,10 +180,9 @@ class ND280Job(object):
         testFile.close()
 
         ## First make sure file doesn't already exist
-        command = 'lfc-ls ' + lfn.replace('lfn:','') +'/' + testName
-        if not os.system(command):
-            command = 'lcg-del -a ' + lfn + '/' + testName
-            lines,errors=runLCG(command)
+        lines, _ = ND280DIRAC.DMSFindLFN(lfn, LFN=testName).Run()
+        if len(lines.strip()) > 0:
+            ND280DIRAC.DMSRemoveLFN(join(lfn, testName)).Run()
 
         ## Copy and register
         testFile = ND280GRID.ND280File(testName)
@@ -191,8 +191,7 @@ class ND280Job(object):
             sys.exit(1)
 
         ## Then delete
-        command = 'lcg-del -a ' + lfn + '/' + testName
-        lines,errors = runLCG(command)
+        lines, errors = ND280DIRAC.DMSRemoveLFN(join(lfn, testName)).Run()
         if errors:
             print '\n'.join(errors)
             sys.exit(1)
@@ -398,9 +397,6 @@ class ND280Job(object):
             copy_ok   = ''
             copy_ok   = curr_file.Register(curr_export_dir,srm,timeout=1800)
 
-            # should remove all output if there is a failure...
-            #if not copy_ok:
-                # sys.exit("ROOT file "+filename+" failed lcg-cr")  #soph-dfc-quick-dirty-fix
         return 0
 
 

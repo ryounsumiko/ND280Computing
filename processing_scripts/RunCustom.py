@@ -167,7 +167,7 @@ for a_file in filelist:
                 os.system(command)
             counter += 1
             # Give the wms some time
-            sleep(ND280Computing.status_wait_times.kJobSubmit)
+            sleep(ND280Computing.StatusWait.kJobSubmit)
     else:
 
         jdlname = '%s.jdl' % jdlbasename
@@ -266,7 +266,7 @@ for a_file in filelist:
                 print child.before
 
             # Give the wms some time
-            sleep(ND280Computing.status_wait_times.kJobSubmit)
+            sleep(ND280Computing.StatusWait.kJobSubmit)
 
         counter += 1
 

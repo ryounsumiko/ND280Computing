@@ -481,8 +481,8 @@ def runLCG(in_command, in_timeout=StatusWait.kTimeout, is_pexpect=True):
 
 
 def runDIRAC(in_command, in_timeout=ND280Comp.StatusWait().kTimeout):
-    """ DIRAC equiv implementation of runLCG without pexpect"""
-    print in_command
+    """ DIRAC commands without pexpect"""
+    print 'runDIRAC', in_command
 
     # Limit the execution time
     # - note this only clocks CPU time so zombie
@@ -506,8 +506,6 @@ def runDIRAC(in_command, in_timeout=ND280Comp.StatusWait().kTimeout):
     # Removal of newlines, carriage returns
     lines = [l.strip() for l in lines]
     errors = [e.strip() for e in errors]
-
-    print 'returned'
     return lines, errors
 
 
@@ -529,8 +527,8 @@ def getReps(filename):
     print 'GetReps for ' + str(filename)
     reps = []
 
-    command = "lcg-lr --vo t2k.org " + filename
-    lines, errors = runLCG(command)
+    ListReplicasCmd = DMSListReplicas(filename)
+    lines, errors = ListReplicasCmd.Run()
     if not errors:
         for l in lines:
             # Get rid of new line and any double //
@@ -801,7 +799,7 @@ def GetCurrentRawDataPath(subdet='ND280', det='ND280'):
     dirs = []
     errors = []
     try:
-        raw_data_folder = '/grid/t2k.org/nd280/raw/'+det+'/'+subdet
+        raw_data_folder = '/t2k.org/nd280/raw/'+det+'/'+subdet
         command = "lfc-ls " + raw_data_folder
         dirs, errors = runLCG(command)
         if errors:
@@ -813,6 +811,7 @@ def GetCurrentRawDataPath(subdet='ND280', det='ND280'):
 
         # Find directory with highest run number and non zero content
         for dir in reversed(dirs):
+
             command = "lfc-ls " + raw_data_folder + "/" + dir
             files, errors = runLCG(command)
             if errors:
@@ -933,11 +932,12 @@ def GetDiracProxyTimeLeft():
     returns an integer value for the number of seconds remaining
     and the errors from the check
     """
+    print 'GetDiracProxyTimeLeft'
     # initialize
     timeleft = 0
 
-    command = 'dirac-proxy-info'
-    lines, errors = runLCG(command)
+    CheckProxyCmd = ND280DIRAC.ProxyInfo()
+    lines, errors = CheckProxyCmd.Run()
 
     if lines and type(lines) is list:
         for a_line in lines:
@@ -955,15 +955,12 @@ def GetDiracProxyTimeLeft():
 
 def IsValidProxy():
     """make sure that the proxy is valid, check against flag"""
-    print 'CheckProxy!'
 
     # if dirac proxy is valid, don't check voms
-    print 'Valid DIRAC proxy?'
     dirac_proxy = CheckDiracProxy()
     if dirac_proxy == StatusFlags.kProxyValid:
         return True
 
-    print 'NO valid DIRAC proxy'
     # check voms now
     print 'Valid VOMS proxy?'
     voms_proxy = CheckVomsProxy()
@@ -976,7 +973,6 @@ def IsValidProxy():
 
 def CheckDiracProxy():
     """make sure that the VOMS proxy is valid"""
-    print 'CheckDiracProxy'
 
     # initialize
     timeleft, errors = GetDiracProxyTimeLeft()
@@ -1321,15 +1317,14 @@ class ND280File(object):
         self.turl = str()  # transfer url used by some file systems
         if check:
             if not IsValidProxy():
-                print 'INVALID PROXY'
                 raise self.Error('No valid proxy')
             SetGridEnv()
 
         # Get rid of any new lines and trailing slashes
         fn = fn.strip().rstrip('/')
         self.filename = fn.split('/')[len(fn.split('/'))-1]
-        self.path = fn.replace(self.filename, '')
-
+        self.path = fn.replace(self.filename, '').replace('lfn:', '').replace('LFN:', '')
+        lfn = fn.replace('lfn:', '').replace('LFN:', '')
         # Get the replicas of this file
         self.reps = list()
         self.alias = str()
@@ -1338,23 +1333,21 @@ class ND280File(object):
         self.gridfile = str()
         self.is_a_dir = False
 
-        print 'ls ', fn
-        command = 'ls ' + fn
+        print 'ls ', fn.replace('lfn:', '').replace('LFN:', '')
+        command = 'ls ' + fn.replace('lfn:', '').replace('LFN:', '')
         rtc = system(command)
         try:
             if 'lfn:' in fn or 'LFN:' in fn:
                 self.alias = fn
-                FormattedName = self.filename.replace('lfn:', '').replace('LFN:', '')
-                FindDIRACFile = ND280DIRAC.DMSFindLFN(LFN=FormattedName)
-                _, errors = FindDIRACFile.Run()
+                FindDIRACFile = ND280DIRAC.DMSFindLFN(self.path, LFN=self.filename)
+                lines, errors = FindDIRACFile.Run()
                 # findCommand = 'dirac-dms-find-lfns --Path=%s \"Name=%s\"'
                 # findCommand = findCommand % (self.path, FormattedName)
-                lines, errors = runDIRAC(findCommand)
+                # lines, errors = runDIRAC(findCommand)
                 if errors:
                     raise self.Error('Unable to find file '+ fn)
-                lfn = lines.strip()
-                sizeCommand = 'dirac-dms-data-size --Unit=MB ' + lfn
-                lines, errors = runDIRAC(sizeCommand)
+                GetDIRACFileSize = ND280DIRAC.DMSFileSize(lfn)
+                lines, errors = GetDIRACFileSize.Run()
                 if errors:
                     raise self.Error('Unable to find file size '+ fn)
                 for a_line in lines:
@@ -1411,7 +1404,6 @@ and does not exist on the local system ' + fn)
             self.filetype = 'c'
         else:
             self.filetype = 'o'
-        print('soph - ND280GRID.py - ND280File  3- self.filename = ' + self.filename )
 
 
     def __del__(self):
@@ -1710,7 +1702,7 @@ On a GRID node? No=Don\'t Worry, yes=WTF')
             # first if original file is at RAL, make sure it is staged on disk,
             # otherwise FTS will timeout
             if 'srm-t2k.gridpp.rl.ac.uk' in original_filename:
-                lines, errors = runLCG('lcg-ls -l ' + original_filename)
+                lines, errors = DMSFindLFN('', LFN=original_filename).Run()
                 if errors:
                     raise self.Error('Could not determine staging of ' +
                                      original_filename)
@@ -1774,11 +1766,12 @@ On a GRID node? No=Don\'t Worry, yes=WTF')
 
         diracCMDFMT = 'dirac-dms-add-file -ddd %s %s %s'
         SE = 'UKI-LT2-QMUL2-disk'
-        diracCMD = diracCMDFMT % (dlfn, self.filename, SE)
-        _, errors = runDIRAC(diracCMD)
+        AddFileToDIRAC = ND280DIRAC.DMSAddFile(LFN=dlfn, FileName=self.filename, SE=SE)
+        # AddFileToDIRAC.EnableDebug()
+        _, errors = AddFileToDIRAC.Run()
         if errors:
             for retry in range(3):
-                _, errors = runDIRAC(diracCMD)
+                _, errors = AddFileToDIRAC.Run()
                 if not errors:
                     return dlfn
             raise self.Error('Error copying local file to the GRID\n', errors)
@@ -1909,8 +1902,7 @@ class ND280Dir(object):
         """ Deletes all files in the ND280Dir """
         if self.griddir:
             for file, size in self.dir_dic.iteritems():
-                command = 'lcg-del -a ' + self.dir + '/' + file
-                lines, errors = runLCG(command)
+                lines, errors = DMSRemoveLFN(join(self.dir, file)).Run()
                 if errors:
                     raise self.Error('Could not remove file ', command, errors)
         return 0

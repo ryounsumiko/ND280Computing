@@ -800,8 +800,7 @@ def GetCurrentRawDataPath(subdet='ND280', det='ND280'):
     errors = []
     try:
         raw_data_folder = '/t2k.org/nd280/raw/'+det+'/'+subdet
-        command = "lfc-ls " + raw_data_folder
-        dirs, errors = runLCG(command)
+        dirs, errors = ND280DIRAC.DMSFindLFN(raw_data_folder).Run()
         if errors:
             raise Exception
 
@@ -812,15 +811,14 @@ def GetCurrentRawDataPath(subdet='ND280', det='ND280'):
         # Find directory with highest run number and non zero content
         for dir in reversed(dirs):
 
-            command = "lfc-ls " + raw_data_folder + "/" + dir
-            files, errors = runLCG(command)
+            files, errors = ND280DIRAC.DMSFindLFN(dir)
             if errors:
                 raise Exception
             if not len(files):
                 continue
             else:
                 path = raw_data_folder + '/' + dir
-                return (path).replace('/grid/t2k.org', '').strip()
+                return (path).replace('/t2k.org', '').strip()
 
     except Exception as exception:
         print str(exception)
@@ -1335,15 +1333,13 @@ class ND280File(object):
 
         print 'ls ', fn.replace('lfn:', '').replace('LFN:', '')
         command = 'ls ' + fn.replace('lfn:', '').replace('LFN:', '')
-        rtc = system(command)
+        lines, errors = ND280Comp(command)
+        print lines
         try:
             if 'lfn:' in fn or 'LFN:' in fn:
                 self.alias = fn
                 FindDIRACFile = ND280DIRAC.DMSFindLFN(self.path, LFN=self.filename)
                 lines, errors = FindDIRACFile.Run()
-                # findCommand = 'dirac-dms-find-lfns --Path=%s \"Name=%s\"'
-                # findCommand = findCommand % (self.path, FormattedName)
-                # lines, errors = runDIRAC(findCommand)
                 if errors:
                     raise self.Error('Unable to find file '+ fn)
                 GetDIRACFileSize = ND280DIRAC.DMSFileSize(lfn)
@@ -1761,13 +1757,17 @@ On a GRID node? No=Don\'t Worry, yes=WTF')
              srm=the SURL to register, or the SRM on which to register
         """
 
-        _, dlfn = lfn.split("lfn:/grid", 1)
-        dlfn = dlfn + self.filename
+        if 'lfn:' in lfn:
+            _, dlfn = lfn.split("lfn:", 1)
+        elif 'LFN:' in lfn:
+            _, dlfn = lfn.split("LFN:", 1)
+        else:
+            raise self.Error('Unable to find lfn in name!')
+        dlfn = dlfn.replace('/grid', '')
+        dlfn = join(dlfn, self.filename)
 
-        diracCMDFMT = 'dirac-dms-add-file -ddd %s %s %s'
         SE = 'UKI-LT2-QMUL2-disk'
         AddFileToDIRAC = ND280DIRAC.DMSAddFile(LFN=dlfn, FileName=self.filename, SE=SE)
-        # AddFileToDIRAC.EnableDebug()
         _, errors = AddFileToDIRAC.Run()
         if errors:
             for retry in range(3):
@@ -1812,9 +1812,8 @@ class ND280Dir(object):
 
         # Classify the directory type and check it's existance
         # LFC Directories
-        if 'lfn:' in self.dir:
-            command = 'lfc-ls -l ' + self.dir.replace('lfn:', '')
-            lines, errors = runLCG(command, in_timeout=ls_timeout)
+        if 'lfn:' in self.dir or 'LFN:' in self.dir:
+            lines, errors = ND280DIRAC.DMSFindLFN(self.dir).Run()
             if not errors:
                 for line in lines:
                     # very rarely get files without a name,
@@ -2217,7 +2216,7 @@ the ND280COMPUTINGROOT environment variable, have you executed the setup.sh?')
             else:
                 # The location of the replicas determine the resource matching
                 jdlfile.write('InputData = \
-{"lfn:/grid/t2k.org/nd280/cvmfsAccessList"};\n]\n};\n')
+{"lfn:/t2k.org/nd280/cvmfsAccessList"};\n]\n};\n')
             jdlfile.write('DataAccessProtocol = {"gsiftp"};\n')
 
             # VO requirements (ND280 software version etc)

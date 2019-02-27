@@ -39,7 +39,7 @@ nd280ver = options.version
 if not nd280ver:
     sys.exit('Please enter a version of the ND280 Software to use')
 
-## example input is 'lfn:/grid/t2k.org/nd280/raw/ND280/ND280/00005000_00005999/nd280_00005216_0000.daq.mid.gz'
+## example input is 'lfn:/t2k.org/nd280/raw/ND280/ND280/00005000_00005999/nd280_00005216_0000.daq.mid.gz'
 input = options.input
 if not input and not 'lfn:' in input:
     sys.exit('Please enter an lfn: input file')
@@ -78,8 +78,8 @@ j = ND280Process(nd280ver, input_file, "Raw", evtype, modulelist, config, dbtime
 if options.useTestDB:
     j.useTestDB=True
 
-## Build up the path lfn:/grid/t2k.org/nd280/calib/v*r*p*/ND280/ND280/0000*000_0000*999/[filetype]
-path_prot = 'lfn:/grid/t2k.org/nd280/calib/' + nd280ver + '/ND280/ND280/' + input_file.GetRunRange() + '/'
+## Build up the path lfn:/t2k.org/nd280/calib/v*r*p*/ND280/ND280/0000*000_0000*999/[filetype]
+path_prot = 'lfn:/t2k.org/nd280/calib/' + nd280ver + '/ND280/ND280/' + input_file.GetRunRange() + '/'
 path_end  = ''
 
 ## Copy across the root files, register some

@@ -226,7 +226,7 @@ class DIRACBase(object):
         if type(inString) is str:
             return inString.replace('LFN:', '').replace('lfn:', '')
 
-    def Run(self, PrintCommand=False):
+    def Run(self, PrintCommand=False, PrintLines=True, PrintErrors=False):
         """almost equivalent to __str__, but with errors and multiple calls"""
         if PrintCommand:
             print self.command
@@ -253,6 +253,10 @@ class DIRACBase(object):
         # Removal of newlines, carriage returns
         lines = [l.strip() for l in lines]
         errors = [e.strip() for e in errors]
+        if PrintLines:
+            print lines
+        if PrintErrors:
+            print errors
         return lines, errors
 
     def __str__(self):

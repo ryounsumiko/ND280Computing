@@ -7,6 +7,7 @@ information of packages, disable packages and install software.
 """
 import sys
 import os
+from os.path import join
 import glob
 from datetime import datetime
 from time import time
@@ -181,8 +182,11 @@ class ND280Job(object):
 
         ## First make sure file doesn't already exist
         lines, _ = ND280DIRAC.DMSFindLFN(lfn, LFN=testName).Run()
-        if len(lines.strip()) > 0:
+        if len(lines) >= 1 and len(lines[0].strip()) != 0:
+            print 'Found', lfn, 'already on DIRAC FS, will delete now'
             ND280DIRAC.DMSRemoveLFN(join(lfn, testName)).Run()
+        else:
+            print 'Did NOT find', lfn, 'on DIRAC FS,'
 
         ## Copy and register
         testFile = ND280GRID.ND280File(testName)
@@ -251,21 +255,10 @@ class ND280Job(object):
         curr_export_dir = dir_prot + '/' + copy_dir + '/' + dir_end
         curr_export_dir = curr_export_dir.replace('//','/')
 
-        # soph-quick-dirty-dfc-fix
-        # remove this whole block and reqrite in dfc at some point
-        ##Check if a cfg file is already saved
-        #command="lfc-ls "+curr_export_dir.replace('lfn:','')
-        #lines,errors=runLCG(command)
-        #for line in lines:
-        #    if copy_type in line:
-        #        print 'Conf file already stored on LFN'   # soph-quick-dirty-dfc-fix
-        #        return 0     # soph-quick-dirty-dfc-fix
-
         #If not, upload a file
         os.chdir(self.base)
-        #command = "ls *.cfg"
-        #lines,errors=runLCG(command,is_pexpect=False)
-        #copy_ok=''
+        command = "ls *.cfg"
+        os.system(command)
         if dirsuff:
             copy_dir += dirsuff
         #for line in lines:
@@ -408,8 +401,7 @@ class ND280Job(object):
 
         if vectorPath:
             vectorDir    = vectorPath
-            command      = 'lfc-ls '+vectorDir
-            lines,errors = ND280GRID.runLCG(command)
+            lines, errors = ND280DIRAC.DMSFindLFN(vectorDir).Run()
 
             ## If there are files in this directory, try and
             ## locate the correct one
@@ -421,8 +413,7 @@ class ND280Job(object):
             production,respin = inputPath.split('/')[4:6]
 
             ## Look in production respin folders prior to this one
-            command = 'lfc-ls /grid/t2k.org/nd280/'+production
-            lines,errors = ND280GRID.runLCG(command)
+            lines, errors = ND280DIRAC.DMSFindLFN(join('/t2k.org/nd280/', production)).Run()
 
             vectorName = ''
 
@@ -438,8 +429,7 @@ class ND280Job(object):
                     vectorDir+='/'+type
                     print 'Examining '+ vectorDir
 
-                    command = 'lfc-ls '+vectorDir
-                    lines,errors = ND280GRID.runLCG(command)
+                    lines, errors = ND280DIRAC.DMSFindLFN(vectorDir).Run()
 
                     if lines:
                         ## If there are files in this directory, try and

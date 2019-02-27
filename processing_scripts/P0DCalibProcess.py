@@ -25,7 +25,7 @@ from time import sleep
 from ND280GRID import ND280File
 from ND280Job import ND280Process
 import StorageElement as SE
-from ND280Computing import status_wait_times
+from ND280Computing import StatusWait
 
 
 def main(argv):
@@ -34,7 +34,7 @@ def main(argv):
     ########################################################################
     parser = optparse.OptionParser()
     # example input is
-    # 'lfn:/grid/t2k.org/nd280/raw/ND280/ND280/00005000_00005999/nd280_00005216_0000.daq.mid.gz'
+    # 'lfn:/t2k.org/nd280/raw/ND280/ND280/00005000_00005999/nd280_00005216_0000.daq.mid.gz'
     parser.add_option("-i", "--input", dest="input",
                       type="string",
                       help="Input to process, must be an lfn")
@@ -78,7 +78,7 @@ def main(argv):
 
     # Delay processing by random time to avoid database blocking
     # rt = 200. * random.random()
-    rt = status_wait_times.kJobSubmit
+    rt = StatusWait.kJobSubmit
     print lotsOfPounds
     print 'Sleeping ' + str(rt) + ' seconds'
     print lotsOfPounds
@@ -96,7 +96,7 @@ def main(argv):
     # Create Job object
     mem_unit = SE.units(1).kGibibyte
     mem_unit_str = 'GiB'
-    time_unit = status_wait_times().kHour
+    time_unit = StatusWait.kHour
     time_unit_str = 'hr'
     print 'Job object'
     # max file size
@@ -107,8 +107,8 @@ def main(argv):
     tlim = 24 * time_unit  # 24 hr
     dbtime = '2038-01-01'
 
-    print 'Max file size = ', str(fmem / mem_unit), mem_unit_str 
-    print 'Max memory = ', str(vmem / mem_unit), mem_unit_str 
+    print 'Max file size = ', str(fmem / mem_unit), mem_unit_str
+    print 'Max memory = ', str(vmem / mem_unit), mem_unit_str
     print 'Max walltime = ', str(tlim / time_unit), time_unit_str
     print 'DB time = ' + dbtime
     print lotsOfPounds
@@ -131,8 +131,8 @@ def main(argv):
         nd280_proc.useTestDB = True
 
     # Build up the path
-    # lfn:/grid/t2k.org/nd280/calib/v*r*p*/ND280/ND280/0000*000_0000*999/[filetype]
-    path_prot = join('lfn:/grid/t2k.org/nd280/calib',
+    # lfn:/t2k.org/nd280/calib/v*r*p*/ND280/ND280/0000*000_0000*999/[filetype]
+    path_prot = join('lfn:/t2k.org/nd280/calib',
                      nd280ver, 'ND280/ND280', input_file.GetRunRange())
     path_prot += '/'
     path_end = str()

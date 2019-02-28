@@ -1303,6 +1303,10 @@ def GetSubRunFromFlukaFileName(flukaFileName=''):
 class ND280File(object):
     """ A class that contains useful file functions """
 
+    class Error(Exception):
+        """internal error class"""
+        pass
+
     def __init__(self, fn, check=True):
         """Characterises the file and performs check to
         test if the file exists in the location specified.
@@ -1320,9 +1324,13 @@ class ND280File(object):
 
         # Get rid of any new lines and trailing slashes
         fn = fn.strip().rstrip('/')
-        self.filename = fn.split('/')[len(fn.split('/'))-1]
-        self.path = fn.replace(self.filename, '').replace('lfn:', '').replace('LFN:', '')
+        if len(fn) < 1:
+            raise Error('No input file')
         lfn = fn.replace('lfn:', '').replace('LFN:', '')
+        if lfn[0] != '/' and ('lfn:' in fn or 'LFN:' in fn):
+            lfn = '/' + fn
+        self.filename = lfn.split('/')[len(fn.split('/'))-1]
+        self.path = lfn.replace(self.filename, '')
         # Get the replicas of this file
         self.reps = list()
         self.alias = str()
@@ -1331,10 +1339,10 @@ class ND280File(object):
         self.gridfile = str()
         self.is_a_dir = False
 
-        print 'ls ', fn.replace('lfn:', '').replace('LFN:', '')
-        command = 'ls ' + fn.replace('lfn:', '').replace('LFN:', '')
-        lines, errors = ND280Comp(command)
-        print lines
+        command = 'ls ' + lfn
+        lines, errors = ND280Comp.GetListPopenCommand(command)
+        print 'ls ', lfn
+        print str(lines)
         try:
             if 'lfn:' in fn or 'LFN:' in fn:
                 self.alias = fn
@@ -1348,7 +1356,7 @@ class ND280File(object):
                     raise self.Error('Unable to find file size '+ fn)
                 for a_line in lines:
                     if '1' in a_line and '|' in a_line:
-                        self.size = int(a_line.split('|')[1] * SE.units(1e3).kMegabyte)
+                        self.size = float(a_line.split('|')[1].strip())
                 # Set up relative paths and filename
                 self.path = self.alias.replace('lfn:/grid/', '')
                 # Do this too in case /grid is not present
@@ -1357,9 +1365,9 @@ class ND280File(object):
                 self.gridfile = 'l'
             else:
                 # This file is not registered on the GRID, is it local?
-                command = 'ls ' + fn
-                rtc = system(command)
-                if rtc:
+                command = 'ls ' + lfn
+                lines, errors = ND280Comp.GetListPopenCommand(command)
+                if errors:
                     raise self.Error('This file is not registered on the LFC \
 and does not exist on the local system ' + fn)
                 self.gridfile = ''

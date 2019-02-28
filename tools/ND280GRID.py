@@ -1344,7 +1344,12 @@ class ND280File(object):
         print 'ls ', lfn
         print str(lines)
         try:
-            if 'lfn:' in fn or 'LFN:' in fn:
+            # This file is not registered on the GRID, is it local?
+            command = 'ls ' + lfn
+            lines, errors = ND280Comp.GetListPopenCommand(command)
+            if errors or ('lfn:' in fn or 'LFN:' in fn):
+                print 'This file is not in the local FS, trying DFC'
+                self.gridfile = ''
                 self.alias = fn
                 FindDIRACFile = ND280DIRAC.DMSFindLFN(self.path, LFN=self.filename)
                 lines, errors = FindDIRACFile.Run()
@@ -1354,6 +1359,7 @@ class ND280File(object):
                 lines, errors = GetDIRACFileSize.Run()
                 if errors:
                     raise self.Error('Unable to find file size '+ fn)
+                self.size = 0.
                 for a_line in lines:
                     if '1' in a_line and '|' in a_line:
                         self.size = float(a_line.split('|')[1].strip())
@@ -1362,15 +1368,10 @@ class ND280File(object):
                 # Do this too in case /grid is not present
                 self.path = self.alias.replace('lfn:/', '')
                 self.path = self.path.replace(self.filename, '')
-                self.gridfile = 'l'
-            else:
-                # This file is not registered on the GRID, is it local?
-                command = 'ls ' + lfn
-                lines, errors = ND280Comp.GetListPopenCommand(command)
-                if errors:
-                    raise self.Error('This file is not registered on the LFC \
-and does not exist on the local system ' + fn)
-                self.gridfile = ''
+                if self.size > 0:
+                    self.gridfile = 'l'
+                else:
+                    raise Error('This file is not in the local FS and DFC')
 
             """
             Matthew H: Unless someone else knows better, I am removing this

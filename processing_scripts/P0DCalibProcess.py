@@ -54,10 +54,14 @@ def main(argv):
         return
 
     usr_input = options.input
-    if not (type(usr_input) is str and 'lfn:' in usr_input):
-        print 'Please enter an lfn: input file'
+    if not (type(usr_input) is str and len(usr_input) > 0):
+        print 'Please enter an input file'
         parser.print_help()
         return
+    usr_input = usr_input.strip()
+
+    if 'lfn:' not in user_input:
+        usr_input = 'lfn:' + usr_input
 
     default_SE = SE.GetDefaultSE()
     #########################################################################

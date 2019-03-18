@@ -15,9 +15,9 @@ class P0DBarEndCalib(ND280Job):
         self.inputToGenCalib = "file.txt"
 
     def CheckoutCodes(self):
-        # Check env:
-	    command =""
-	    command += "echo $LD_LIBRARY_PATH\n"
+        # Check env
+        command =""
+        command += "echo $LD_LIBRARY_PATH\n"
         command += "ls $ND280ROOT\n"
         # Check out cvs package.
         command += "cmt checkout -r HEAD mppcCalib\n"

@@ -801,7 +801,9 @@ def GetCurrentRawDataPath(subdet='ND280', det='ND280'):
     try:
         raw_data_folder = '/t2k.org/nd280/raw/'+det+'/'+subdet
         dirs, errors = ND280DIRAC.DMSFindLFN(raw_data_folder).Run()
-        if errors:
+        while '' in dirs:
+            dirs.remove('')
+        if errors or len(dirs) < 1:
             raise Exception
 
         # truncate any folders that are not of the
@@ -812,10 +814,12 @@ def GetCurrentRawDataPath(subdet='ND280', det='ND280'):
         for dir in reversed(dirs):
 
             files, errors = ND280DIRAC.DMSFindLFN(dir)
-            if errors:
-                raise Exception
-            if not len(files):
+            while '' in files:
+                files.remove('')
+            if not len(files) and not errors:
                 continue
+            elif errors:
+                raise Exception
             else:
                 path = raw_data_folder + '/' + dir
                 return (path).replace('/t2k.org', '').strip()
@@ -1353,7 +1357,9 @@ class ND280File(object):
                 self.alias = fn
                 FindDIRACFile = ND280DIRAC.DMSFindLFN(self.path, LFN=self.filename)
                 lines, errors = FindDIRACFile.Run()
-                if errors:
+                while '' in lines:
+                    lines.remove('')
+                if errors or len(lines) < 1:
                     raise self.Error('Unable to find file '+ fn)
                 GetDIRACFileSize = ND280DIRAC.DMSFileSize(lfn)
                 lines, errors = GetDIRACFileSize.Run()
@@ -1708,7 +1714,9 @@ On a GRID node? No=Don\'t Worry, yes=WTF')
             # otherwise FTS will timeout
             if 'srm-t2k.gridpp.rl.ac.uk' in original_filename:
                 lines, errors = DMSFindLFN('', LFN=original_filename).Run()
-                if errors:
+                while '' in lines:
+                    lines.remove('')
+                if errors or len(lines) < 1:
                     raise self.Error('Could not determine staging of ' +
                                      original_filename)
                 else:
@@ -1776,12 +1784,19 @@ On a GRID node? No=Don\'t Worry, yes=WTF')
         dlfn = join(dlfn, self.filename)
 
         SE = 'UKI-LT2-QMUL2-disk'
+
+        CheckIfAlreadyExists = ND280DIRAC.DMSFindLFN(self.path, LFN=lfn)
+        lines, errors = CheckIfAlreadyExists.Run()
+        while '' in lines:
+            lines.remove('')
+        if len(lines) == 1:
+            return dlfn
         AddFileToDIRAC = ND280DIRAC.DMSAddFile(LFN=dlfn, FileName=self.filename, SE=SE)
-        _, errors = AddFileToDIRAC.Run()
-        if errors:
+        lines, errors = AddFileToDIRAC.Run()
+        if errors or len(lines) < 1:
             for retry in range(3):
-                _, errors = AddFileToDIRAC.Run()
-                if not errors:
+                lines, errors = AddFileToDIRAC.Run()
+                if not errors and len(lines) > 0:
                     return dlfn
             raise self.Error('Error copying local file to the GRID\n', errors)
         else:
@@ -1823,7 +1838,9 @@ class ND280Dir(object):
         # LFC Directories
         if 'lfn:' in self.dir or 'LFN:' in self.dir:
             lines, errors = ND280DIRAC.DMSFindLFN(self.dir).Run()
-            if not errors:
+            while '' in lines:
+                lines.remove('')
+            if not errors and len(lines) > 0:
                 for line in lines:
                     # very rarely get files without a name,
                     # skip directories in which the filename
@@ -1910,9 +1927,13 @@ class ND280Dir(object):
         """ Deletes all files in the ND280Dir """
         if self.griddir:
             for file, size in self.dir_dic.iteritems():
-                lines, errors = DMSRemoveLFN(join(self.dir, file)).Run()
-                if errors:
-                    raise self.Error('Could not remove file ', command, errors)
+                lines, errors = ND280DIRAC.DMSFindLFN(self.dir, LFN=file).Run()
+                while '' in lines:
+                    lines.remove('')
+                if len(lines) < 1:
+                    lines, errors = ND280DIRAC.DMSRemoveLFN(join(self.dir, file)).Run()
+                    if errors:
+                        raise self.Error('Could not remove file ', command, errors)
         return 0
 
     def HashDiff(self, other_dir):

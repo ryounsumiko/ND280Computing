@@ -60,7 +60,7 @@ def main(argv):
         return
     usr_input = usr_input.strip()
 
-    if 'lfn:' not in user_input:
+    if 'lfn:' not in usr_input:
         usr_input = 'lfn:' + usr_input
 
     default_SE = SE.GetDefaultSE()

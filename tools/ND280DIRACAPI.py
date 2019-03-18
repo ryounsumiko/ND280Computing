@@ -213,6 +213,7 @@ class DIRACBase(object):
         self.command = str()
         self.args = dict()
         self.inputs = list()
+        # self.EnableDebug()
 
     def EnableDebug(self, enable=True):
         """Enable or disable debug"""
@@ -243,7 +244,9 @@ class DIRACBase(object):
         for ii in range(3):
             print 'Try %d of \"%s\" with %d timeout' % (ii, SelfCommand, self.timeout)
             lines, errors = ND280Computing.GetListPopenCommand(command)
-            if errors:
+            if 'already exists' in lines:
+                break
+            elif errors:
                 print 'ERROR!'
                 print '\n'.join(errors)
                 time.sleep(self.timeout)
@@ -251,8 +254,21 @@ class DIRACBase(object):
             else:
                 break
         # Removal of newlines, carriage returns
-        lines = [l.strip() for l in lines]
-        errors = [e.strip() for e in errors]
+        lines = [line.strip() for line in lines]
+        errors = [error.strip() for error in errors]
+        for line in lines:
+            if 'already exists' in line:
+                errors = []
+                break
+            if ':' not in line:
+                continue
+            output = line.split(':')
+            if len(output) < 2:
+                continue
+            subject = output[0].strip()
+            msg = output[1].strip()
+            if ('Error' in subject or 'error' in subject) and len(msg) > 0:
+                errors.append(msg)
         if PrintLines:
             print lines
         if PrintErrors:
@@ -334,7 +350,7 @@ class DMSListReplicas(DIRACBase):
     """
 
     def __init__(self, LFN):
-        super(DMSAddFile, self).__init__()
+        super(DMSListReplicas, self).__init__()
         self.command = 'dirac-dms-lfn-replicas'
         LFN = self.RemoveLFNString(LFN)
         self.inputs.append(LFN)

@@ -201,9 +201,8 @@ def GetTopLevelDir(storageElement):
         inLFN = join('/t2k.org/test', testFileName)
         DMSAddTestFile = DMSAddFile(LFN=inLFN, FileName=testFileName,
                                     SE=storageElement)
-        DMSAddTestFile.EnableDebug()
-        _, errors = DMSAddFile.Run()
-        if errors:
+        lines, errors = DMSAddFile.Run()
+        if errors or len(lines) < 1:
             raise Exception
 
         # Use# GUID to retrieve data path to

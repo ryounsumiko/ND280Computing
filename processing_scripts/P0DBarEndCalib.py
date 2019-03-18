@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import subprocess
 import os
 import sys
 import optparse
@@ -14,21 +13,28 @@ class P0DBarEndCalib(ND280Job):
         #Hard code intermidiate file name for simplicity.
         self.hitsOutput = "hits.root"
         self.inputToGenCalib = "file.txt"
-	
-    def RunGetHits(self,input_filelist):
+
+    def CheckoutCodes(self):
         # Check env:
-	command =""
-	command += "echo $LD_LIBRARY_PATH\n"
-        command += "ls $VO_T2K_ORG_SW_DIR\n" 
-	# Check out cvs package.
+	    command =""
+	    command += "echo $LD_LIBRARY_PATH\n"
+        command += "ls $ND280ROOT\n"
+        # Check out cvs package.
         command += "cmt checkout -r HEAD mppcCalib\n"
         command += "pushd mppcCalib/*/cmt\n"
         command += "cmt br cmt config\n"
-        command += "ls\n"
         command += "source ./setup.sh\n"
         command += "cmt make\n"
-        #Create input for next stage.
         command += "popd\n"
+        rtc = self.RunCommand(command)
+        if rtc:
+            print("failed in checkout codes")
+            return False
+        return True
+
+    def RunGetHits(self,input_filelist):
+        command =""
+        #Create input for next stage.
         command += "echo `pwd`/%s > %s\n" % (self.hitsOutput, self.inputToGenCalib)
         # Run getP0DSandMuonBarEndHits
         command += "getP0DSandMuonBarEndHits.exe -o %s %s"%(self.hitsOutput,input_filelist)
@@ -62,6 +68,8 @@ def main(argv):
     # Main Program
     ########################################################################
     P0Dcalib = P0DBarEndCalib(options.version)
+    if not P0Dcalib.CheckoutCodes():
+        return False
     P0Dcalib.RunGetHits(options.input)
 
 

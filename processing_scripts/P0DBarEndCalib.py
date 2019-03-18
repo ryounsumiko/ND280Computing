@@ -11,23 +11,27 @@ class P0DBarEndCalib(ND280Job):
     """Run P0DBarEndCalib"""
     def  __init__(self,nd280ver):
         super(P0DBarEndCalib,self).__init__(nd280ver)
+        #Hard code intermidiate file name for simplicity.
+        self.hitsOutput = "hits.root"
+        self.inputToGenCalib = "file.txt"
 
-    def test_env(self):
-        command = "echo $CVSROOT\n"
-        command += "ls\n"
-        # check out cvs package.
+    def RunGetHits(self,input_filelist):
+        # Check out cvs package.
         command += "cmt checkout -r HEAD mppcCalib\n"
-        command += "cd mppcCalib/*/cmt\n"
+        command += "pushd mppcCalib/*/cmt\n"
         command += "cmt br cmt config\n"
         command += "ls\n"
         command += "source ./setup.sh\n"
         command += "make\n"
-        command += "which getP0DSandMuonBarEndHits.exe\n"
+        #Create input for next stage.
+        command += "popd\n"
+        command += "echo `$PWD`/%s > %s" % (self.hitsOutput, self.inputToGenCalib)
+        # Run getP0DSandMuonBarEndHits
+        
+        command += "getP0DSandMuonBarEndHits -o %s %s"%(self.hitsOutput,input_filelist)
         rtc = self.RunCommand(command)
         if rtc:
             print("failed in executing command")
-    def Run(self):
-        return
 
 
 def main(argv):
@@ -41,22 +45,21 @@ def main(argv):
     parser.add_option("-i", "--input", dest="input",
                       type="string",
                       help="Input to process, must be an lfn")
-
+    
     #parser.add_option("--useTestDB", action='store_true', default=False,
     #                  help="Prepend the DB cascade with the test DB")
 
     (options, args) = parser.parse_args()
-    nd280ver = options.version
-    if not nd280ver:
+
+    if not options.version:
         print 'Please enter a version of the ND280 Software to use'
         parser.print_help()
         return
 
     # Main Program
     ########################################################################
-    P0Dcalib = P0DBarEndCalib(nd280ver)
-    P0Dcalib.test_env()
-    #P0Dcalib.Run()
+    P0Dcalib = P0DBarEndCalib(options.version)
+    P0Dcalib.RunGetHits(options.input)
 
 
 if __name__ == "__main__":

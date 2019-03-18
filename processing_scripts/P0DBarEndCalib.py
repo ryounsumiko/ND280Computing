@@ -3,6 +3,7 @@
 import subprocess
 import os
 import sys
+import optparse
 
 from ND280Job import ND280Job
 
@@ -29,6 +30,9 @@ def main(argv):
     # example version is v12r15 or v11r31
     parser.add_option("-v", "--version", dest="version",
                       type="string", help="Version of nd280 software to use")
+    parser.add_option("-i", "--input", dest="input",
+                      type="string",
+                      help="Input to process, must be an lfn")
 
     #parser.add_option("--useTestDB", action='store_true', default=False,
     #                  help="Prepend the DB cascade with the test DB")

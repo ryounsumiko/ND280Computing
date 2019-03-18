@@ -14,10 +14,14 @@ class P0DBarEndCalib(ND280Job):
         #Hard code intermidiate file name for simplicity.
         self.hitsOutput = "hits.root"
         self.inputToGenCalib = "file.txt"
-
+	
     def RunGetHits(self,input_filelist):
-        # Check out cvs package.
-        command = "cmt checkout -r HEAD mppcCalib\n"
+        # Check env:
+	command =""
+	command += "echo $LD_LIBRARY_PATH\n"
+        command += "ls $VO_T2K_ORG_SW_DIR\n" 
+	# Check out cvs package.
+        command += "cmt checkout -r HEAD mppcCalib\n"
         command += "pushd mppcCalib/*/cmt\n"
         command += "cmt br cmt config\n"
         command += "ls\n"

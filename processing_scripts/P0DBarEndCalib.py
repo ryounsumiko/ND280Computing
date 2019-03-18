@@ -22,13 +22,12 @@ class P0DBarEndCalib(ND280Job):
         command += "cmt br cmt config\n"
         command += "ls\n"
         command += "source ./setup.sh\n"
-        command += "make\n"
+        command += "cmt make\n"
         #Create input for next stage.
         command += "popd\n"
-        command += "echo `$PWD`/%s > %s" % (self.hitsOutput, self.inputToGenCalib)
+        command += "echo `pwd`/%s > %s\n" % (self.hitsOutput, self.inputToGenCalib)
         # Run getP0DSandMuonBarEndHits
-        
-        command += "getP0DSandMuonBarEndHits -o %s %s"%(self.hitsOutput,input_filelist)
+        command += "getP0DSandMuonBarEndHits.exe -o %s %s"%(self.hitsOutput,input_filelist)
         rtc = self.RunCommand(command)
         if rtc:
             print("failed in executing command")

@@ -18,8 +18,10 @@ class P0DBarEndCalib(ND280Job):
         # check out cvs package.
         command += "cmt checkout -r HEAD mppcCalib\n"
         command += "cd mppcCalib/*/cmt\n"
+        command += "cmt config\n"
+        command += "ls\n"
         command += "source setup.sh\n"
-        command += "cmt make\n"
+        command += "make\n"
         command += "which getP0DSandMuonBarEndHits.exe\n"
         rtc = self.RunCommand(command)
         if rtc:

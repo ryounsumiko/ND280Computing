@@ -12,13 +12,13 @@ class P0DBarEndCalib(ND280Job):
     def  __init__(self,nd280ver):
         super(P0DBarEndCalib,self).__init__(nd280ver)
 
-    def test_env():
+    def test_env(self):
         command = "echo $CVSROOT\n"
         command += "which getP0DSandMuonBarEndHits.exe"
         rtc = self.RunCommand(command)
         if rtc:
             print("failed in executing command")
-    def Run():
+    def Run(self):
         return
 
 

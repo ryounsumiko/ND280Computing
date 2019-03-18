@@ -18,11 +18,9 @@ class P0DBarEndCalib(ND280Job):
         # check out cvs package.
         command += "cmt checkout -r HEAD mppcCalib\n"
         command += "cd mppcCalib/*/cmt\n"
-        command += "cmt config\n"
+        command += "cmt br cmt config\n"
         command += "ls\n"
         command += "source ./setup.sh\n"
-        command += "ls /cvmfs/t2k.egi.eu/nd280v11r31p15/tfbCalib/v1r33/Linux-x86_64\n"
-        command += "ls /cvmfs/t2k.egi.eu/nd280v11r31p15/mppcCalib\n"
         command += "make\n"
         command += "which getP0DSandMuonBarEndHits.exe\n"
         rtc = self.RunCommand(command)

@@ -70,7 +70,7 @@ def main(argv):
     P0Dcalib = P0DBarEndCalib(options.version)
     if not P0Dcalib.CheckoutCodes():
         return False
-    P0Dcalib.RunGetHits(options.input)
+    P0Dcalib.RunGetHits(options.input.replace("lfn:",""))
 
 
 if __name__ == "__main__":

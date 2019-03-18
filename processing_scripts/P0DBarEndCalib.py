@@ -14,13 +14,13 @@ class P0DBarEndCalib(ND280Job):
 
     def test_env(self):
         command = "echo $CVSROOT\n"
-        command += "ls"
+        command += "ls\n"
         # check out cvs package.
         command += "cmt checkout -r HEAD mppcCalib\n"
         command += "cd mppcCalib/*/cmt\n"
         command += "source setup.sh\n"
         command += "cmt make\n"
-        command += "which getP0DSandMuonBarEndHits.exe"
+        command += "which getP0DSandMuonBarEndHits.exe\n"
         rtc = self.RunCommand(command)
         if rtc:
             print("failed in executing command")

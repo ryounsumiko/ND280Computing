@@ -17,7 +17,7 @@ class P0DBarEndCalib(ND280Job):
 
     def RunGetHits(self,input_filelist):
         # Check out cvs package.
-        command += "cmt checkout -r HEAD mppcCalib\n"
+        command = "cmt checkout -r HEAD mppcCalib\n"
         command += "pushd mppcCalib/*/cmt\n"
         command += "cmt br cmt config\n"
         command += "ls\n"

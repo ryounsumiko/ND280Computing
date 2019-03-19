@@ -6,6 +6,10 @@ import optparse
 
 from ND280Job import ND280Job
 
+def appendLine(command,line):
+    return command + line+"\n"
+
+
 class P0DBarEndCalib(ND280Job):
     """Run P0DBarEndCalib"""
     def  __init__(self,nd280ver):
@@ -15,17 +19,19 @@ class P0DBarEndCalib(ND280Job):
         self.inputToGenCalib = "file.txt"
 
     def CheckoutCodes(self):
-        # Check env
+        # Export LIBRARY_PATH for searching path when compiling
         command =""
-        command += "echo $LD_LIBRARY_PATH\n"
-        command += "ls $ND280ROOT\n"
+        command += "export LIBRARY_PATH=$LD_LIBRARY_PATH\n"
         # Check out cvs package.
         command += "cmt checkout -r HEAD mppcCalib\n"
         command += "pushd mppcCalib/*/cmt\n"
-        command += "cmt br cmt config\n"
-        command += "source ./setup.sh\n"
-        command += "cmt make\n"
-        command += "popd\n"
+        command += "cmt config\n"
+        # Do compiling
+        # Things may go wrong starting here
+        command += "source ./setup.sh && "
+        command += "cmt make && "
+        command += "which getP0DSandMuonBarEndHits.exe && "
+        command += "popd; exit $?"
         rtc = self.RunCommand(command)
         if rtc:
             print("failed in checkout codes")
@@ -37,12 +43,25 @@ class P0DBarEndCalib(ND280Job):
         #Create input for next stage.
         command += "echo `pwd`/%s > %s\n" % (self.hitsOutput, self.inputToGenCalib)
         # Run getP0DSandMuonBarEndHits
-        command += "getP0DSandMuonBarEndHits.exe -o %s %s"%(self.hitsOutput,input_filelist)
+        command += "source ./mppcCalib/*/cmt/setup.sh\n"
+        command += "getP0DSandMuonBarEndHits.exe -o %s %s" % (self.hitsOutput,input_filelist)
         rtc = self.RunCommand(command)
         if rtc:
-            print("failed in executing command")
+            print("failed in executing getP0DSandMuonBarEndHits")
+            return False
+        return True
 
-
+    def RunGenerateCalib(self,output_filename):
+        command =""
+        #Run genP0DBarEndCalib.exe
+        command += "source ./mppcCalib/*/cmt/setup.sh\n"
+        command += "genP0DBarEndCalib.exe -o %s %s" % (output_filename, self.hitsOutput)
+        rtc = self.RunCommand(command)
+        if rtc:
+            print("failed in executing genP0DBarEndCalib")
+            return False
+        return True
+    
 def main(argv):
     # Parser Options
     ########################################################################
@@ -70,7 +89,7 @@ def main(argv):
     P0Dcalib = P0DBarEndCalib(options.version)
     if not P0Dcalib.CheckoutCodes():
         return False
-    P0Dcalib.RunGetHits(options.input.replace("lfn:",""))
+    P0Dcalib.RunGetHits(options.input.replace("lfn:","lfn:/"))
 
 
 if __name__ == "__main__":
